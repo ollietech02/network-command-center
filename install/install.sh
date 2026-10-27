@@ -37,7 +37,7 @@ ${C}${B}  NCC // NETWORK COMMAND CENTER${N}
 EOF
 os_detect
 net_detect
-ok "$OS_NAME ($ARCH), address on your network: ${LAN_IP:-unknown}, router: ${GW_IP:-unknown}"
+ok "$OS_NAME ($ARCH), network connection found"
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))' 2>/dev/null || die "Needs Python 3.9 or newer."
 
 # ------------------------------------------------------------------ choose what to install
@@ -74,7 +74,7 @@ router_is_att && ROUTER=att
 
 # ------------------------------------------------------------------ say exactly what will happen, then ask
 step "Here's the plan"
-say "  • Install the dashboard in $DIR and start it at http://127.0.0.1:$PORT (only this computer can open it)"
+say "  • Install the dashboard in $DIR and start it at http://localhost:$PORT (only this computer can open it)"
 say "  • Look: $STYLE (you can change it any time in Tools & settings)"
 [ "$ROUTER" = att ] && say "  • AT&T gateway found: extra router stats turned on (read-only)"
 case "$BLOCKER" in
@@ -138,13 +138,14 @@ fi
 
 # ------------------------------------------------------------------ what's left for you
 step "Done! Here's what's left for you"
-say "  ${B}Open the dashboard:${N} http://127.0.0.1:$PORT  (or \"Network Command Center\" in your apps)"
+say "  ${B}Open the dashboard:${N} http://localhost:$PORT  (or \"Network Command Center\" in your apps)"
 [ -n "$TS_URL" ] && say "  ${B}On your phone:${N} turn Tailscale on, open $TS_URL, and set a PIN on the computer first (Security tab)."
 if [ -n "$BLOCKER_DONE" ]; then
   cat <<EOF
   ${B}Make $BLOCKER_DONE protect every device at home${N} (the installer never changes your router):
     1. In your router's settings, give this computer a fixed address ("DHCP reservation") so it stays ${LAN_IP:-the same}.
     2. Set the router's DNS server to ${LAN_IP:-this computer's address}.
+    (That address is private: it only works inside your home and isn't visible on the internet.)
     Until then, only this computer's ads are blocked.
 EOF
 fi

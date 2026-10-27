@@ -46,7 +46,7 @@ every default.
 
 ## After installing
 
-- Open **http://127.0.0.1:8088**, or **Network Command Center** in your apps menu.
+- Open **http://localhost:8088**, or **Network Command Center** in your apps menu.
 - **Make the ad blocker cover your whole home:** in your router's settings, give this computer a fixed address
   (a "DHCP reservation"), then set the router's DNS server to that address. The installer never changes your router,
   so until you do this only this computer's ads are blocked.
@@ -55,7 +55,7 @@ every default.
 
 ## Safe by default
 
-- The dashboard only listens on the computer itself (`127.0.0.1`). Phones reach it through Tailscale's private
+- The dashboard only listens on the computer itself (`localhost`), so other devices can't open it directly. Phones reach it through Tailscale's private
   network, never through an open port.
 - Nothing is opened to the internet. "Web access" (any browser, no Tailscale) is a separate switch you turn on
   yourself, and it uses passwords plus emailed sign-in codes.
