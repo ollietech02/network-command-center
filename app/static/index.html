@@ -203,7 +203,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .lv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media (max-width:1500px){.lv-grid{grid-template-columns:1fr 1fr}}
 @media (max-width:520px){.lv-grid{grid-template-columns:1fr}}
-[hidden]{display:none!important}
+[hidden],.feat-off{display:none!important}
 .clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .clock b{font:600 20px var(--mono);color:var(--ink);letter-spacing:.04em}
 .clock span{font:11px var(--mono);color:var(--ink2);letter-spacing:.06em}
@@ -434,6 +434,7 @@ tr.edrow td{background:var(--sunk)}
   </section>
 
   <!-- pihole + security -->
+  <section class="panel c12 feat-off" data-v="only pihole" id="wh-sec"><h2>Whole-home setup <span class="sub">make every device use Pi-hole</span></h2><div id="wh"></div></section>
   <section class="panel c6" data-v="pihole" data-span="pihole:7"><h2>Pi-hole DNS filter</h2><div id="ph"></div></section>
   <section class="panel c6" data-v="only pihole" data-span="pihole:5"><h2>Blocked by device <span class="sub">today</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Device</th><th>Blocked</th><th>of all lookups</th></tr></thead><tbody id="bbd-tb"></tbody></table></div>
@@ -837,7 +838,7 @@ async function remoteUI(){
 // (A public switch through Funnel was removed 2026-10-26: Funnel routes by TLS name, and RDP clients don't send one.)
 function rdUI(r){
   const d=r.rdp||{},host=(r.url||"").replace(/^https:\/\//,""),short=host.split(".")[0];
-  $("#rd").closest("section").hidden=!d.on;if(!d.on)return;
+  $("#rd").closest("section").classList.toggle("feat-off",!d.on);if(!d.on)return;
   const code=v=>`<code class="big-code">${esc(v)}</code> <button data-copy="${esc(v)}">Copy</button>`;
   $("#rd").innerHTML=`<div class="cols2"><div>
     <p>Works from your <b>home Wi-Fi</b>${host?" and from devices with <b>Tailscale</b> on":""}. It isn't reachable from the open internet.</p>
@@ -1251,14 +1252,55 @@ function macLookup(){
 $("#ml-q").oninput=()=>{closeEditors();macLookup()};$("#ml-f").onchange=macLookup;
 $("#ml-tb").addEventListener("click",e=>{const b=e.target.closest("[data-ml]");if(b)openEditor(b.closest("tr"),b.dataset.ml)});
 
+// ---- Whole-home setup guide: step by step, for the router this home has. Read-only: it never touches the router.
+let WH_AT=0;
+async function setupGuide(force){
+  if(!force&&Date.now()-WH_AT<300000)return;WH_AT=Date.now();
+  const g=await api("/api/blocker/setup");$("#wh-sec").classList.toggle("feat-off",!(g&&g.blocker));if(!g||!g.blocker)return;
+  const n=esc(g.blocker),ip0=esc(g.lan_ip||"this computer's address"),gw=esc(g.gateway||"your router"),pre=(g.lan_ip||"192.168.1.x").split(".").slice(0,3).join(".");
+  const adg=g.blocker!=="Pi-hole",att=g.router==="att",ip=att&&g.fixed_ip!==true&&g.lan_ip?esc(pre+".2"):ip0,admin=g.admin_url?`<a class="lnk" href="${esc(g.admin_url)}" target="_blank" rel="noopener">${esc(g.admin_url)}</a> (opens only on this computer)`:"its admin page";
+  const st=(ok,t)=>`<li class="${ok?"done":""}">${ok?"✔":"○"} ${t}</li>`;
+  const fixed=g.fixed_ip===true?`<b>Done:</b> this computer keeps ${ip0}.`:`This computer's address must never change, or devices lose ${n}.
+    <br>On this computer: <b>Settings → ${att?"Wi-Fi":"Wi-Fi (or Network)"} → ⚙ next to your network → IPv4 → Manual</b>: address <code>${ip}</code>, netmask <code>255.255.255.0</code>, gateway <code>${gw}</code>, DNS <code>1.1.1.1</code> → Apply, then turn Wi-Fi off and on.
+    ${att?`<br><span class="muted">${esc(pre)}.2 is outside the range AT&amp;T hands out (.64-.253), so nothing else will take it. Then run <code>./ncc restart</code>.</span>`:`<br><span class="muted">Or, easier if your router has it: a "DHCP reservation" for this computer in the router's settings.</span>`}`;
+  let how;
+  if(att) how=`${st(false,`<b>Let ${n} hand out addresses.</b> AT&amp;T gateways don't let you change the DNS server, so instead ${n} becomes the one that gives every device its address and tells it to use ${n}.<ol type="a">
+      <li>Open ${admin} → ${adg?"<b>Settings → DHCP settings</b>: pick the network card, gateway <code>"+gw+"</code>, range <code>"+esc(pre)+".64</code> to <code>"+esc(pre)+".253</code>, lease <code>604800</code> seconds (7 days) → <b>Enable DHCP server</b>":"<b>Settings → DHCP</b>: turn on <b>DHCP server enabled</b>, range <code>"+esc(pre)+".64</code> to <code>"+esc(pre)+".253</code>, router <code>"+gw+"</code>, lease time <code>7d</code> → <b>Save</b>"}.</li>
+      <li><b>Right after</b>, open <code>http://${gw}</code> → <b>Home Network → Subnets &amp; DHCP</b> → <b>DHCPv4 Server: Off</b> → Save. It asks for the <b>Device Access Code</b> printed on the gateway's sticker.</li>
+      <li>On each device, turn Wi-Fi off and on (or restart it) so it picks up the new settings.</li></ol>
+    <div class="find warn"><span class="ic">!</span><div><b>Good to know</b><span>While this computer is off, new devices can't join the Wi-Fi, and after 7 days the others lose their connection. Keep it plugged in. To undo: turn the gateway's DHCPv4 Server back On, then turn off ${n}'s DHCP.</span></div></div>
+    <p class="sm muted">If a few devices still show ads afterwards, they may be using AT&amp;T's DNS over IPv6. You can turn it off at <b>Home Network → IPv6 → IPv6: Off</b> (most homes don't need IPv6 inside the house).</p>`)}`;
+  else how=`${st(false,`<b>Point your router's DNS at ${ip}.</b> In your router's app or settings page, find <b>DNS</b> (usually under <b>LAN</b>, <b>DHCP</b> or <b>Advanced</b>), choose <b>Custom/Manual</b>, set <b>DNS 1</b> to <code>${ip}</code> and leave DNS 2 empty (if it insists, use ${ip} again), then Save.
+      <details class="sm"><summary>Where it is on popular routers</summary><ul>
+        <li><b>Google Nest Wifi / Google Wifi:</b> Google Home app → Wi-Fi → Settings → Advanced networking → DNS → Custom</li>
+        <li><b>eero:</b> eero app → Settings → Network settings → DNS → Customized DNS</li>
+        <li><b>TP-Link Deco:</b> Deco app → More → Advanced → IPv4 → DNS → Custom. <b>TP-Link router:</b> Advanced → Network → DHCP Server → Primary DNS</li>
+        <li><b>ASUS:</b> LAN → DHCP Server → DNS Server 1</li>
+        <li><b>Netgear:</b> Advanced → Setup → Internet Setup → Domain Name Server → Use These DNS Servers</li>
+        <li><b>Linksys:</b> Connectivity → Local Network → DHCP Server → Static DNS 1</li>
+        <li><b>Internet-provider gateways that hide DNS</b> (AT&amp;T, many Xfinity and some Spectrum boxes): turn their DHCP off and let ${n} hand out addresses instead (AT&amp;T steps are in the README), or set DNS on each device.</li></ul>
+        <span class="muted">Menu names change between models; search "&lt;router model&gt; change DNS" if you can't find it.</span></details>`)}
+    ${st(false,"On each device, turn Wi-Fi off and on (or restart it) so it picks up the change.")}`;
+  $("#wh").innerHTML=`<div class="cols2"><div><ol class="ra-steps">
+      ${st(g.fixed_ip===true,`<b>Give this computer a fixed address.</b> ${fixed}`)}
+      ${how}
+    </ol></div>
+    <div><b>Is it working?</b>
+      <p>${g.clients!=null?`<span class="big-code">${Number(g.clients)}</span> device${g.clients==1?"":"s"} used ${n} recently.`:"—"} ${g.clients!=null&&g.clients<=1?`<br><span class="muted">Only this computer so far: finish the steps on the left.</span>`:g.clients>1?`<br><span class="muted">Other devices are using it. 🎉</span>`:""}</p>
+      <p><button id="wh-re">Check again</button></p>
+      <p class="sm muted">Just one device instead? Set its DNS by hand to <code>${ip}</code>: <b>iPhone</b> Settings → Wi-Fi → ⓘ → Configure DNS → Manual. <b>Windows</b> Settings → Network → Wi-Fi → your network → DNS server assignment → Edit. <b>Android</b> Wi-Fi → your network → ✎ → Advanced → IP settings: Static.</p></div></div>`;
+}
+document.addEventListener("click",e=>{if(e.target.id==="wh-re")setupGuide(true)});
+window.addEventListener("hashchange",()=>{if(location.hash==="#/pihole"&&S&&S.pihole&&S.pihole.configured)setupGuide().catch(()=>{})});
 // The ad blocker can be Pi-hole or AdGuard Home: rename the tab and panel titles once we know which.
 function blockerName(n){
   if(!n||n==="Pi-hole"||window._bn===n)return;window._bn=n;
-  document.querySelectorAll("nav.views a, .panel h2, .rs b, #qf-sub").forEach(el=>{for(const t of el.childNodes)
+  document.querySelectorAll("nav.views a, .panel h2, .panel h2 .sub, .rs b, #qf-sub").forEach(el=>{for(const t of el.childNodes)
     if(t.nodeType===3&&t.nodeValue.includes("Pi-hole"))t.nodeValue=t.nodeValue.replace(/Pi-hole/g,n)});
 }
 function pihole(){
   const p=S.pihole;blockerName(p.name);
+  if(p.configured&&location.hash==="#/pihole")setupGuide().catch(()=>{});
   $("#bd-pihole").textContent=p.configured&&p.ok&&p.pct!=null?Number(p.pct).toFixed(0)+"%":"";
   paStats();
   if(!p.configured){$("#ph").innerHTML=`<div class="find info"><span class="ic">•</span><div><b>No ad blocker connected</b><span>The dashboard works without one. To add Pi-hole or AdGuard Home later, run <code>./install/install.sh</code> again and pick it, or set <code>PIHOLE_URL</code> / <code>ADGUARD_URL</code> in <code>config/ncc.env</code> (password in <code>~/.config/ncc/secrets.env</code>), then run <code>./ncc restart</code>.</span></div></div>`;return}

@@ -141,13 +141,25 @@ step "Done! Here's what's left for you"
 say "  ${B}Open the dashboard:${N} http://localhost:$PORT  (or \"Network Command Center\" in your apps)"
 [ -n "$TS_URL" ] && say "  ${B}On your phone:${N} turn Tailscale on, open $TS_URL, and set a PIN on the computer first (Security tab)."
 if [ -n "$BLOCKER_DONE" ]; then
-  cat <<EOF
-  ${B}Make $BLOCKER_DONE protect every device at home${N} (the installer never changes your router):
+  say "  ${B}Make $BLOCKER_DONE protect every device at home${N} (the installer never changes your router):"
+  if [ "$ROUTER" = att ]; then
+    cat <<EOF
+    AT&T gateways don't let you change the DNS server, so $BLOCKER_DONE hands out the addresses instead:
+    1. Give this computer a fixed address outside AT&T's range, e.g. ${LAN_IP%.*}.2
+       (Settings → Wi-Fi → ⚙ → IPv4 → Manual).
+    2. Turn on $BLOCKER_DONE's DHCP server, then turn OFF the gateway's
+       (http://$GW_IP → Home Network → Subnets & DHCP → DHCPv4 Server: Off).
+    The dashboard's $BLOCKER_DONE tab has a step-by-step "Whole-home setup" guide with the exact values.
+EOF
+  else
+    cat <<EOF
     1. In your router's settings, give this computer a fixed address ("DHCP reservation") so it stays ${LAN_IP:-the same}.
     2. Set the router's DNS server to ${LAN_IP:-this computer's address}.
-    (That address is private: it only works inside your home and isn't visible on the internet.)
-    Until then, only this computer's ads are blocked.
+       (That address is private: it only works inside your home and isn't visible on the internet.)
+    The dashboard's $BLOCKER_DONE tab has a "Whole-home setup" guide with steps for popular routers.
 EOF
+  fi
+  say "    Until then, only this computer's ads are blocked."
 fi
 say "  ${B}Phone alerts and email codes:${N} set them up in the dashboard, Security tab (free; nothing to install)."
 [ "$TAILSCALE" = 1 ] && say "  ${B}Use it from any browser without Tailscale:${N} optional, Security tab → Web access (off until you turn it on)."

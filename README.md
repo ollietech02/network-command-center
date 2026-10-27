@@ -47,11 +47,39 @@ every default.
 ## After installing
 
 - Open **http://localhost:8088**, or **Network Command Center** in your apps menu.
-- **Make the ad blocker cover your whole home:** in your router's settings, give this computer a fixed address
-  (a "DHCP reservation"), then set the router's DNS server to that address. The installer never changes your router,
-  so until you do this only this computer's ads are blocked.
+- **Make the ad blocker cover your whole home:** open the dashboard's **Pi-hole** (or **AdGuard Home**) tab.
+  The **Whole-home setup** guide shows the steps for your router, with your own addresses filled in, and counts how
+  many devices are using the ad blocker so you can tell when it's working. The short version is below.
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
 - **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
+
+## Whole-home ad blocking
+
+Until devices are pointed at the ad blocker, it only protects the computer it's installed on. The installer never
+changes your router, so you do this part yourself (about 5 minutes):
+
+**Most routers** (Google/Nest Wifi, eero, TP-Link, ASUS, Netgear, Linksys and others):
+1. Give this computer an address that never changes: a "DHCP reservation" in the router, or a manual address in
+   Settings → Wi-Fi → ⚙ → IPv4.
+2. In the router's settings, find **DNS** (usually under LAN, DHCP or Advanced) and set **DNS 1** to this computer's
+   address. Leave DNS 2 empty.
+3. Turn Wi-Fi off and on on each device.
+
+**AT&T gateways (BGW210, BGW320) and others that hide the DNS setting:** the ad blocker hands out the addresses instead.
+1. Give this computer a manual address outside AT&T's range, e.g. `192.168.1.2` (Settings → Wi-Fi → ⚙ → IPv4 → Manual:
+   netmask `255.255.255.0`, gateway `192.168.1.254`, DNS `1.1.1.1`). Then run `./ncc restart`.
+2. In Pi-hole (`http://localhost:8081/admin` → Settings → DHCP) turn on the DHCP server: range `192.168.1.64` to
+   `192.168.1.253`, router `192.168.1.254`, lease time `7d`. In AdGuard Home it's Settings → DHCP settings.
+3. **Right after**, on the gateway (`http://192.168.1.254` → Home Network → Subnets & DHCP) set **DHCPv4 Server** to
+   **Off**. It asks for the Device Access Code on the gateway's sticker.
+4. Turn Wi-Fi off and on on each device.
+
+While the computer is off, new devices can't join, and after 7 days the rest lose their connection, so keep it plugged
+in. **To undo:** turn the gateway's DHCPv4 Server back on, then turn off the ad blocker's DHCP. If a few devices still
+show ads, they may be using AT&T's DNS over IPv6: Home Network → IPv6 → Off.
+
+**One device only:** set that device's DNS to this computer's address (iPhone: Settings → Wi-Fi → ⓘ → Configure DNS →
+Manual; Windows: Settings → Network → your network → DNS server assignment → Edit).
 
 ## Safe by default
 

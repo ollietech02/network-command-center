@@ -1696,6 +1696,26 @@ def drop_session(tok):
         _write_private(SESS_FILE, ss)
 
 
+# ---------------------------------------------------------------- whole-home setup guide (Pi-hole tab)
+def blocker_setup():
+    """Facts for the 'make every device use the ad blocker' guide. Read-only: it never changes the router."""
+    iface = local_iface()
+    out = {"router": CFG["ROUTER"], "blocker": PIHOLE.name if PIHOLE else None, "lan_ip": iface.get("ip"),
+           "gateway": default_gateway(), "fixed_ip": None, "admin_url": None, "clients": None}
+    if PIHOLE:
+        out["admin_url"] = PIHOLE.url + ("/admin/" if isinstance(PIHOLE, PiHole) else "/")
+        try:
+            out["clients"] = PIHOLE.stats().get("clients")
+        except Exception:
+            pass
+    if shutil.which("nmcli") and iface.get("dev"):
+        _, con = run(["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", iface["dev"]], 5)
+        if con.strip():
+            _, m = run(["nmcli", "-g", "ipv4.method", "connection", "show", con.strip()], 5)
+            out["fixed_ip"] = m.strip() == "manual" if m.strip() else None
+    return out
+
+
 def remote_status():
     out = {"installed": bool(shutil.which("tailscale")), "pin_set": pin_set(), "state": None, "url": None, "serving": False,
            "login_url": None}
@@ -2910,6 +2930,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(502, {"error": type(e).__name__})
         if path == "/api/readme":
             return self._send(200, (BASE / "README.md").read_text(), "text/plain; charset=utf-8")
+        if path == "/api/blocker/setup":
+            return self._send(200, blocker_setup())
         if path == "/api/remote":
             st = remote_status()
             st["you_are_remote"] = self._remote()
