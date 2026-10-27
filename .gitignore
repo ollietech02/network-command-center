@@ -1,0 +1,10 @@
+# your own settings, history, accounts and backups: never uploaded
+config/ncc.env
+data/
+backups/
+*.pre-*
+*.bak*
+__pycache__/
+*.pyc
+remote-login.txt
+secrets.env

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Opens the Network Command Center as a standalone app window (starts the service if needed).
+URL=http://127.0.0.1:8088/
+if ! curl -sf -m2 "$URL/api/health" >/dev/null; then
+  systemctl --user start ncc.service
+  for i in $(seq 1 20); do curl -sf -m2 "${URL}api/health" >/dev/null && break; sleep 1; done
+fi
+for b in /opt/helium/helium helium chromium chromium-browser google-chrome brave-browser; do
+  if command -v "$b" >/dev/null 2>&1; then exec "$b" --app="$URL" --start-fullscreen "$@"; fi
+done
+exec xdg-open "$URL"

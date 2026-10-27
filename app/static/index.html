@@ -1,0 +1,1563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Network Command Center</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#05090d">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NCC">
+<script>
+// theme before first paint: "dark" | "light" | "auto" (follow the device), remembered per browser.
+// Style = the overall look: "scifi" | "hacker" | "clean". The server fills in the one picked at install time.
+(function(){const DS="__STYLE__",dt=DS==="clean"?"light":"dark";let t=dt;try{t=localStorage.getItem("ncc-theme")||dt}catch(e){}
+  const set=()=>document.documentElement.dataset.theme=t==="auto"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):t;
+  set();try{matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{if(t==="auto")set()})}catch(e){}
+  window.nccLook=()=>{const d=document.documentElement;let z=1,a="cyan",y=DS;
+    try{z=JSON.parse(localStorage.getItem("ncc-size")||"1");a=JSON.parse(localStorage.getItem("ncc-accent")||'"cyan"');y=JSON.parse(localStorage.getItem("ncc-style")||"null")||DS}catch(e){}
+    if(!["scifi","hacker","clean"].includes(y))y="scifi";
+    d.style.zoom=z;d.dataset.accent=a;d.dataset.style=y};nccLook();
+  window.nccStyleDefault=DS;
+  window.nccTheme=v=>{t=v;try{localStorage.setItem("ncc-theme",v)}catch(e){}set()};window.nccThemeGet=()=>t})();
+</script>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#05090d; --panel:#0b131b; --panel2:#0e1923; --line:#163042; --line2:#1f4359;
+  --ink:#e3f1f6; --ink2:#9db6c3; --muted:#5f7a88;
+  --cyan:#3fd0e6; --blue:#3987e5; --teal:#2fbf9f;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --mono:ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
+  --sunk:#0a1a24; --grid:#12283a; --rule:#0f2230; --field:#08121a; --warnbg:#1a1505; --code:#bfe8f2; --strong:#fff;
+  --hdr:rgba(5,9,13,.85);
+}
+/* accent color (Tools & settings → Appearance), per browser */
+:root[data-accent="green"]{--cyan:#3fd98a} :root[data-accent="purple"]{--cyan:#a98bff} :root[data-accent="orange"]{--cyan:#ffa24a} :root[data-accent="pink"]{--cyan:#ff7ab8}
+/* light theme: Tools & settings → Appearance (saved per browser). "Match this device" follows the system setting. */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#eef3f6; --panel:#ffffff; --panel2:#f7fafc; --line:#d2dde4; --line2:#b6c7d1;
+  --ink:#0e1c25; --ink2:#3d5562; --muted:#647b89;
+  --cyan:#0a7f92; --blue:#1d64c4; --teal:#11806a;
+  --good:#0b7d0b; --warn:#a86e00; --serious:#b8501c; --crit:#c02c2c;
+  --sunk:#edf2f5; --grid:#dfe7ec; --rule:#e3eaef; --field:#ffffff; --warnbg:#fff6e0; --code:#0b5f6e; --strong:#000;
+  --hdr:rgba(238,243,246,.9);
+}
+:root[data-theme="light"][data-accent="green"]{--cyan:#0b7d45} :root[data-theme="light"][data-accent="purple"]{--cyan:#6a3fd1}
+:root[data-theme="light"][data-accent="orange"]{--cyan:#b45a00} :root[data-theme="light"][data-accent="pink"]{--cyan:#b8327a}
+*{box-sizing:border-box}
+
+/* ---- styles (Tools & settings → Appearance → Style). "scifi" is the base look above. */
+/* Hacker: black terminal, green phosphor text, monospace everywhere, faint scanlines. Always dark. */
+:root[data-style="hacker"][data-theme]{
+  color-scheme:dark;
+  --bg:#000; --panel:#020a03; --panel2:#031004; --line:#0c3a14; --line2:#145820;
+  --ink:#5cff7a; --ink2:#2fcf52; --muted:#1f9a3a; --cyan:#39ff5a; --blue:#39ff5a; --teal:#2fd96a;
+  --sunk:#010801; --grid:#062a0c; --rule:#06240b; --field:#000; --warnbg:#141400; --code:#9dffad; --strong:#c8ffd2;
+  --hdr:rgba(0,0,0,.92);
+  --mono:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,Menlo,monospace;
+}
+:root[data-style="hacker"] html,:root[data-style="hacker"] body{font-family:var(--mono)}
+:root[data-style="hacker"] body{background:#000}
+:root[data-style="hacker"] body::before{background-image:repeating-linear-gradient(0deg,rgba(57,255,90,.035) 0 1px,transparent 1px 3px);background-size:auto}
+:root[data-style="hacker"] .panel{border-radius:0;background:var(--panel);box-shadow:0 0 0 1px rgba(57,255,90,.04),0 0 18px rgba(57,255,90,.05) inset}
+:root[data-style="hacker"] .panel::before{border-radius:0}
+:root[data-style="hacker"] .panel h2::before{content:"> ";color:var(--cyan)}
+:root[data-style="hacker"] button,:root[data-style="hacker"] input,:root[data-style="hacker"] select{border-radius:0}
+:root[data-style="hacker"] .brand,:root[data-style="hacker"] .tile .big{text-shadow:0 0 8px rgba(57,255,90,.45)}
+/* Clean: plain and friendly. Normal fonts, rounded cards, no grid or glow, no shouting headings. */
+:root[data-style="clean"]{--mono:system-ui,"Ubuntu","Segoe UI",sans-serif}
+:root[data-style="clean"] body{background:var(--bg)}
+:root[data-style="clean"] body::before{display:none}
+:root[data-style="clean"] .panel{border-radius:14px;background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+:root[data-style="clean"] .panel::before{display:none}
+:root[data-style="clean"] .panel h2{font:600 15px system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--ink)}
+:root[data-style="clean"] .brand{letter-spacing:.02em;text-transform:none;font:600 16px system-ui,sans-serif}
+:root[data-style="clean"] .chip{border-radius:999px;letter-spacing:.02em;text-transform:none}
+:root[data-style="clean"] .dot{box-shadow:none}
+:root[data-style="clean"] button,:root[data-style="clean"] input,:root[data-style="clean"] select{border-radius:8px}
+:root[data-style="clean"] .tile .big{font-family:system-ui,sans-serif}
+:root[data-style="clean"] nav.views a{text-transform:none;letter-spacing:0;font-family:system-ui,sans-serif;font-size:14px}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,"Ubuntu",sans-serif}
+body{background:
+  radial-gradient(1200px 600px at 80% -10%,rgba(63,208,230,.07),transparent 60%),
+  radial-gradient(900px 500px at -10% 110%,rgba(57,135,229,.06),transparent 60%),
+  var(--bg);min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(63,208,230,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(63,208,230,.025) 1px,transparent 1px);
+  background-size:32px 32px}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line);
+  background:var(--hdr);backdrop-filter:blur(6px);position:sticky;top:0;z-index:5}
+.brand{font-family:var(--mono);letter-spacing:.22em;font-size:13px;color:var(--cyan);text-transform:uppercase}
+.brand b{color:var(--ink);font-weight:600}
+#ver{color:var(--ink2);letter-spacing:.08em;font-size:11px;text-transform:none;margin-left:6px}
+.hdr-right{margin-left:auto;display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:12px;color:var(--ink2)}
+main{padding:16px 20px 40px;display:grid;gap:14px;grid-template-columns:repeat(12,1fr);max-width:1680px;margin:0 auto}
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:6px;padding:14px 16px;position:relative;min-width:0}
+.panel::before{content:"";position:absolute;left:-1px;top:-1px;width:14px;height:14px;border-left:2px solid var(--cyan);border-top:2px solid var(--cyan);border-top-left-radius:6px;opacity:.7}
+.panel h2{margin:0 0 10px;font:600 11px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--ink2);display:flex;align-items:center;gap:8px}
+.panel h2 .sub{margin-left:auto;letter-spacing:.04em;text-transform:none;color:var(--muted);font-weight:400}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}.c2{grid-column:span 2}
+@media (max-width:1200px){.c2{grid-column:span 4}.c3{grid-column:span 6}.c4,.c5,.c7,.c8{grid-column:span 12}.c6{grid-column:span 12}}
+@media (max-width:700px){main{padding:12px 16px 32px;gap:10px}.c2,.c3{grid-column:span 6}header{padding:10px 16px}.hdr-right{margin-left:0;width:100%}}
+@media (max-width:420px){.c2,.c3{grid-column:span 12}}
+.tile .big{font:600 26px var(--mono);letter-spacing:-.01em;margin:2px 0}
+.tile .big small{font-size:13px;color:var(--ink2);font-weight:400;margin-left:3px}
+.tile .meta{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.chip{display:inline-flex;align-items:center;gap:6px;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.chip.good{color:var(--good);background:rgba(12,163,12,.08)} .chip.warn{color:var(--warn);background:rgba(250,178,25,.08)}
+.chip.crit{color:var(--crit);background:rgba(208,59,59,.1)} .chip.info{color:var(--ink2)} .chip.off{color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.chip.good .dot{animation:pulse 2.4s infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.chip .dot{animation:none!important}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--mono);text-align:right;color:var(--ink);overflow-wrap:anywhere}
+.bar{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden;margin:4px 0 10px}
+.bar i{display:block;height:100%;background:var(--cyan);border-radius:3px}
+.bar i.warn{background:var(--warn)} .bar i.crit{background:var(--crit)}
+.meter-row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);font-family:var(--mono)}
+.chart{width:100%;height:150px;display:block}
+.chart text{fill:var(--muted);font:10px var(--mono)}
+.chart .grid{stroke:var(--grid);stroke-width:1}
+.chart .ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .area{opacity:.12}
+.chart .xh{stroke:var(--ink2);stroke-width:1;stroke-dasharray:3 3}
+.tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--line2);border-radius:4px;padding:6px 9px;font:12px var(--mono);color:var(--ink);z-index:20;display:none;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.tip .t{color:var(--muted);font-size:11px}
+.strip{display:flex;gap:1px;height:22px;align-items:stretch;overflow:hidden}
+.strip i{flex:1;border-radius:1px;background:var(--grid);min-width:0}
+.strip i.g{background:var(--teal);opacity:.75}.strip i.w{background:var(--warn)}.strip i.c{background:var(--crit)}
+.strip-lbl{display:flex;justify-content:space-between;font:10px var(--mono);color:var(--muted);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+td{padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+td.mono{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+tr:hover td{background:rgba(63,208,230,.03)}
+.tbl-wrap{max-height:420px;overflow:auto}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+input,select,button{font:13px system-ui,sans-serif;background:var(--field);color:var(--ink);border:1px solid var(--line2);border-radius:4px;padding:6px 10px}
+input:focus,select:focus,button:focus-visible{outline:1px solid var(--cyan);outline-offset:1px}
+button{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+button:hover{border-color:var(--cyan);color:var(--cyan)}
+#tvmode{font:12px var(--mono);letter-spacing:.04em;background:var(--field);color:var(--ink);border:1px solid var(--line2);border-radius:4px;padding:6px 10px;text-decoration:none;white-space:nowrap}
+/* view-only web accounts: the server refuses changes; this greys out the controls so it's clear up front */
+#vo-banner{display:none}
+body.viewonly #vo-banner{display:block;background:var(--warnbg);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
+body.viewonly main section:not(.vo-ok) :is(button,select,input,textarea):not([data-copy]):not(#ra-out):not(#dev-f):not(#set-theme):not(#set-chart){opacity:.4;pointer-events:none}
+.al-h{font:600 13px var(--mono);letter-spacing:.06em;color:var(--cyan);margin:18px 0 4px}
+#tvmode:hover{border-color:var(--cyan);color:var(--cyan)}
+button.danger:hover{border-color:var(--serious);color:var(--serious)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.find{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:13px}
+.find:last-child{border-bottom:0}
+.find .ic{font:700 12px var(--mono);width:18px;flex:none;text-align:center}
+.find.good .ic{color:var(--good)}.find.warn .ic{color:var(--warn)}.find.crit .ic{color:var(--crit)}.find.info .ic{color:var(--ink2)}
+.find b{display:block;font-weight:600}
+#overall{cursor:pointer}
+.why-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:14px}
+.why-item{border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin:8px 0;display:flex;gap:12px}
+.why-item.crit{border-color:var(--crit)}.why-item.warn{border-color:var(--warn)}
+.why-item .ic{font:700 14px var(--mono);flex:none;width:18px;text-align:center}
+.why-item.crit .ic{color:var(--crit)}.why-item.warn .ic{color:var(--warn)}.why-item.info .ic{color:var(--ink2)}.why-item.good .ic{color:var(--good)}
+.why-item b{display:block;font-size:14px}.why-item .det{color:var(--muted);font:12px var(--mono);margin:2px 0 6px}
+.why-item p{margin:4px 0;font-size:13px}.why-item ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.why-ref{margin-top:14px}.why-ref summary{cursor:pointer;color:var(--cyan);font-size:13px}
+.why-ref h3{font:600 11px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+.find span{color:var(--ink2)}
+.ev{font:12px var(--mono);padding:5px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:110px 54px 1fr;gap:8px}
+.ev .lv-crit{color:var(--crit)}.ev .lv-warn{color:var(--warn)}.ev .lv-info{color:var(--ink2)}
+.ev .m{color:var(--ink);font-family:system-ui,sans-serif;font-size:13px}
+@media (max-width:700px){.ev{grid-template-columns:1fr}}
+.answer{white-space:pre-wrap;background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:10px 12px;min-height:80px;font-size:13px;color:var(--ink);max-height:320px;overflow:auto}
+.answer .src{display:block;color:var(--muted);font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+#topo{width:100%;height:360px;display:block}
+#topo text{font:11px var(--mono);fill:var(--ink2)}
+#topo .lbl-strong{fill:var(--ink);font-weight:600}
+.note{color:var(--muted);font-size:12px;margin:8px 0 0}
+.toplist{list-style:none;margin:0;padding:0;font:12px var(--mono)}
+.toplist li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule)}
+.toplist li>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:700px){.cols2{grid-template-columns:1fr}}
+.muted{color:var(--muted)}
+.live-chip{color:var(--cyan)} .live-chip.stale{color:var(--muted)}
+.live-chip .dot{animation:pulse 1s infinite}
+.lchart{width:100%;height:110px;display:block}
+.lchart text{fill:var(--muted);font:10px var(--mono)} .lchart .grid{stroke:var(--grid)} .lchart .ln{fill:none;stroke-width:2;stroke-linejoin:round} .lchart .xh{stroke:var(--ink2);stroke-dasharray:3 3}
+.qfeed{font:12px var(--mono);max-height:300px;overflow:auto}
+/* the feed panel stretches to its row's height; let the list fill it instead of stopping at 300px */
+.qpanel{display:flex;flex-direction:column}
+.qpanel .qfeed{flex:1 1 0;min-height:300px;max-height:none}
+.qrow{display:grid;grid-template-columns:62px 1fr auto;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.qrow .d{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.qrow.blk .d{color:var(--serious);text-decoration:line-through;text-decoration-color:rgba(236,131,90,.5)}
+.qrow .c{color:var(--muted);font-size:11px;grid-column:2/4}
+.qrow.fresh{animation:flash 1.2s ease-out}
+@keyframes flash{from{background:rgba(63,208,230,.12)}to{background:transparent}}
+.lv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:1500px){.lv-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.lv-grid{grid-template-columns:1fr}}
+[hidden]{display:none!important}
+.clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.clock b{font:600 20px var(--mono);color:var(--ink);letter-spacing:.04em}
+.clock span{font:11px var(--mono);color:var(--ink2);letter-spacing:.06em}
+body.fs main{max-width:none}
+nav.views{flex-basis:100%;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin:0 -4px -14px}
+nav.views::-webkit-scrollbar{display:none}
+nav.views a{font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);text-decoration:none;padding:8px 12px 10px;border-bottom:2px solid transparent;white-space:nowrap;display:flex;gap:6px;align-items:baseline}
+nav.views a:hover{color:var(--ink)}
+nav.views a[aria-current=page]{color:var(--cyan);border-bottom-color:var(--cyan)}
+nav.views a .bd{font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
+@media (max-width:700px){nav.views{margin-bottom:-10px;flex-wrap:wrap;overflow:visible}
+  nav.views a{padding:8px 9px 9px;letter-spacing:.08em}
+  #updated,#fs{display:none}
+  header{padding-top:max(10px,env(safe-area-inset-top))}
+  .hdr-right{justify-content:flex-start;flex-wrap:wrap;gap:8px}
+  .hdr-right .clock{width:100%}
+  .hdr-right button,.hdr-right a{white-space:nowrap}}
+@media (min-width:1201px){.panel[style*="--span"]{grid-column:span var(--span)}}
+body[data-view=internet] .lv-grid{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){body[data-view=internet] .lv-grid{grid-template-columns:1fr}}
+body[data-view=devices] .tbl-wrap{max-height:none}
+body[data-view=pihole] .qfeed{min-height:640px}
+.lnk{color:var(--cyan);font:12px var(--mono);text-decoration:none}
+.lnk:hover{text-decoration:underline}
+.ed{padding:0 5px;margin-left:6px;font-size:11px;border-color:transparent;background:none;color:var(--muted)}
+tr:hover .ed,.ed:focus-visible{border-color:var(--line2);color:var(--ink2)}
+@media (hover:none){.ed{border-color:var(--line2)}}
+.dn.lab{font-weight:600}
+.sm{color:var(--muted);font-size:11px;font-family:var(--mono)}
+.hint{font-size:12px;color:var(--warn);margin-top:3px}
+.hint button{padding:1px 6px;font-size:11px;margin-left:4px}
+.ed-row{display:flex;gap:6px;flex-wrap:wrap}
+.ed-row input{flex:1;min-width:120px;padding:3px 7px}
+.ed-row button{padding:3px 8px}
+.qa{padding:0 6px;font-size:10px;margin-left:6px;opacity:0}
+.qrow:hover .qa,.qa:focus-visible{opacity:1}
+@media (hover:none){.qa{opacity:1}}
+label.chk{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink2);cursor:pointer}
+label.chk input{padding:0;width:15px;height:15px;margin:0;accent-color:var(--cyan)}
+.answer.st-error{border-color:var(--serious)} .answer.st-done{border-color:var(--line2)}
+tr.edrow td{background:var(--sunk)}
+.editor{display:grid;gap:10px;padding:4px 0}
+.editor .fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.editor label{display:flex;flex-direction:column;gap:3px;font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.editor label input{font:13px system-ui,sans-serif;letter-spacing:0;text-transform:none;min-width:200px}
+.remind{border:1px solid rgba(250,178,25,.45);background:rgba(250,178,25,.06);border-radius:4px;padding:10px 12px;font-size:13px}
+.remind b{color:var(--warn)}
+.remind ul{margin:6px 0 0;padding-left:18px;color:var(--ink2)}
+.remind li{margin:2px 0}
+.blockinfo{border:1px solid var(--line2);border-radius:4px;padding:10px 12px;font-size:13px;color:var(--ink2)}
+.blockinfo ol{margin:6px 0 0;padding-left:20px}
+.mac-hl{color:var(--cyan);font-weight:600}
+[data-ml]{white-space:nowrap}
+.blkbar{margin:0 0 10px;padding:8px 12px;border:1px solid rgba(255,80,80,.45);border-radius:8px;background:rgba(255,60,60,.08);display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.blk-item{white-space:nowrap}
+.ra-steps{padding-left:4px;list-style:none}.ra-steps li{margin:6px 0}.ra-steps li.done{color:var(--good,#3ecf8e)}
+.ra-pin{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}
+.big-code{font-size:16px;padding:4px 8px;user-select:all}
+.sp-top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+.sp-now{display:flex;gap:22px;flex-wrap:wrap;flex:1}
+.sp-now .big{font-size:28px}
+.out-sum{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:10px}
+.bar-in{height:6px;border-radius:3px;background:var(--crit);opacity:.8}
+.rs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.rs{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line,#1d3342);border-radius:8px}
+.rs button{margin-top:auto;align-self:flex-start}
+.blkbtns{display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.c9{grid-column:span 9}
+@media (max-width:1200px){.c9,.gtoc{grid-column:span 12}}
+.gtoc{position:sticky;top:132px;align-self:start;max-height:calc(100vh - 150px);overflow:auto}
+@media (max-width:1200px){.gtoc{position:static;max-height:none}}
+.gtoc input{width:100%;margin-bottom:12px}
+.gtoc ol{list-style:none;margin:0;padding:0;counter-reset:g}
+.gtoc li a{display:flex;gap:10px;padding:6px 8px;border-left:2px solid transparent;color:var(--ink2);text-decoration:none;font-size:13px;border-radius:0 3px 3px 0}
+.gtoc li a::before{counter-increment:g;content:counter(g,decimal-leading-zero);font:11px var(--mono);color:var(--muted);padding-top:1px}
+.gtoc li a:hover{color:var(--ink);background:rgba(63,208,230,.04)}
+.gtoc li a.on{color:var(--cyan);border-left-color:var(--cyan);background:rgba(63,208,230,.06)}
+.gtoc li.miss{display:none}
+.guide{max-width:920px}
+.guide .hero{padding:6px 0 18px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.guide .hero h1{font:600 24px var(--mono);letter-spacing:.06em;margin:0 0 8px;color:var(--ink)}
+.guide .hero p{color:var(--ink2);font-size:15px;line-height:1.6;margin:6px 0}
+.guide section.gs{padding:22px 0 8px;border-bottom:1px solid var(--rule);scroll-margin-top:140px}
+.guide section.gs.miss{display:none}
+.guide h2{font:600 13px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin:0 0 12px;display:flex;align-items:center;gap:10px}
+.guide h2 .n{color:var(--muted);font-weight:400}
+.guide p,.guide li{font-size:14.5px;line-height:1.65;color:var(--ink)}
+.guide p{margin:0 0 12px}
+.guide ul{margin:0 0 12px;padding-left:20px}
+.guide li{margin:0 0 8px}
+.guide li::marker{color:var(--cyan)}
+.guide b{color:var(--strong);font-weight:600}
+.guide code{font:12.5px var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:3px;padding:1px 5px;color:var(--code);overflow-wrap:anywhere}
+.guide a{color:var(--cyan)}
+.guide pre{position:relative;background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:14px 16px;overflow:auto;margin:0 0 14px}
+.guide pre code{background:none;border:0;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink)}
+.guide pre .cm{color:var(--muted)}
+.guide pre button{position:absolute;top:8px;right:8px;padding:2px 8px;font-size:11px}
+.guide table{margin:0 0 14px;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.guide td,.guide th{font-size:13.5px;padding:8px 12px}
+.guide mark{background:rgba(250,178,25,.28);color:var(--strong);border-radius:2px;padding:0 1px}
+.guide .nohit{color:var(--muted);padding:20px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>NCC</b> // Network Command Center <span id="ver" class="sub"></span></div>
+  <span id="overall" class="chip info"><span class="dot"></span>Initializing</span>
+  <span id="live" class="chip live-chip stale" title="Live stream status"><span class="dot"></span>Connecting</span>
+  <div class="hdr-right"><div class="clock" aria-live="off"><b id="clock-t">--:--:--</b><span id="clock-d"></span></div><span id="updated">—</span><button id="refresh" title="Run all checks now">⟳ Re-check</button><button id="hdr-out" title="Sign this browser out" hidden>⎋ Log out</button><a id="tvmode" href="/wall" title="Big read-only screen for a TV or spare monitor, opens in full screen">▣ Display mode</a><button id="fs" title="Full screen (press F; Esc to leave)">⛶ Full screen</button></div>
+  <nav class="views" aria-label="Dashboards">
+    <a href="#/" data-view="overview">Overview</a><a href="#/internet" data-view="internet">Internet</a>
+    <a href="#/devices" data-view="devices">Devices <span class="bd" id="bd-devices"></span></a><a href="#/pihole" data-view="pihole">Pi-hole <span class="bd" id="bd-pihole"></span></a>
+    <a href="#/system" data-view="system">This PC</a><a href="#/security" data-view="security">Security</a><a href="#/troubleshoot" data-view="troubleshoot">Troubleshoot</a><a href="#/tools" data-view="tools">Tools &amp; settings</a><a href="#/guide" data-view="guide">Help</a>
+  </nav>
+</header>
+<main>
+<div id="vo-banner">👁 View-only account: you can look at everything and use the diagnostic tools, but you can't change anything.</div>
+  <!-- status tiles -->
+  <section class="panel tile c2" data-v="only devices" data-span="devices:4"><h2>Devices</h2><div id="t-dev"></div></section>
+  <section class="panel tile c2" data-v="internet" data-span="internet:3"><h2>Internet</h2><div id="t-net"></div></section>
+  <section class="panel tile c2" data-v="internet devices" data-span="internet:3 devices:4"><h2>Router</h2><div id="t-gw"></div></section>
+  <section class="panel tile c2" data-v="internet"><h2>Latency</h2><div id="t-lat"></div></section>
+  <section class="panel tile c2" data-v="internet pihole" data-span="pihole:4"><h2>DNS</h2><div id="t-dns"></div></section>
+  <section class="panel tile c2" data-v="pihole" data-span="pihole:4"><h2>Pi-hole</h2><div id="t-ph"></div></section>
+  <section class="panel tile c2" data-v="only pihole" data-span="pihole:4"><h2>Your lists</h2><div id="t-lists"></div></section>
+  <section class="panel tile c2" data-v="internet devices" data-span="devices:4"><h2>Throughput</h2><div id="t-tp"></div></section>
+
+  <!-- live -->
+  <section class="panel c8" data-v="internet system" data-span="internet:12 system:8"><h2>Live telemetry <span class="sub"><span id="lt-per">1 s</span> refresh · last <span id="lt-win">5 min</span> · not stored</span></h2>
+    <div class="lv-grid">
+      <div data-v="system"><div class="meter-row"><span>CPU</span><span id="lv-cpu">—</span></div><svg class="lchart" id="lc-cpu"></svg></div>
+      <div data-v="internet"><div class="meter-row"><span>Gateway ping</span><span id="lv-gw">—</span></div><svg class="lchart" id="lc-gw"></svg></div>
+      <div data-v="internet"><div class="meter-row"><span>Internet ↓ (home)</span><span id="lv-rx">—</span></div><svg class="lchart" id="lc-rx"></svg></div>
+      <div data-v="internet"><div class="meter-row"><span>Internet ↑ (home)</span><span id="lv-tx">—</span></div><svg class="lchart" id="lc-tx"></svg></div>
+      <div data-v="system"><div class="meter-row"><span>Memory used</span><span id="lv-mem">—</span></div><svg class="lchart" id="lc-mem"></svg></div>
+      <div data-v="system"><div class="meter-row"><span>This PC Wi-Fi ↓</span><span id="lv-nrx">—</span></div><svg class="lchart" id="lc-nrx"></svg></div>
+      <div data-v="overview"><div class="meter-row"><span>DNS queries / min</span><span id="lv-qpm">—</span></div><svg class="lchart" id="lc-qpm"></svg></div>
+      <div data-v="system"><div class="meter-row"><span>CPU temperature</span><span id="lv-temp">—</span></div><svg class="lchart" id="lc-temp"></svg></div>
+    </div>
+    <p class="note">Home internet speed comes from the router's own counters (AT&amp;T gateways only, set ROUTER=att; other routers can't share them). "This PC" is only this laptop's own traffic.</p>
+  </section>
+  <section class="panel c12" data-v="only pihole"><h2>DNS activity <span class="sub">live · last 5 min</span></h2>
+    <div class="lv-grid" style="grid-template-columns:1fr 1fr 1fr">
+      <div><div class="meter-row"><span>Queries / min</span><span id="pa-q">—</span></div><svg class="lchart" id="lc-pq"></svg></div>
+      <div><div class="meter-row"><span>Blocked / min</span><span id="pa-b">—</span></div><svg class="lchart" id="lc-pb"></svg></div>
+      <div><dl class="kv" id="pa-stats"></dl></div>
+    </div>
+  </section>
+  <section class="panel c4 qpanel" data-v="pihole" data-span="pihole:5"><h2>Live DNS queries <span class="sub" id="qf-sub">Pi-hole</span></h2><div class="qfeed" id="qfeed"><p class="note">Waiting for Pi-hole…</p></div></section>
+
+  <!-- charts -->
+  <section class="panel c8" data-v="internet">
+    <h2>History <span class="sub"><select id="range" aria-label="Time range"><option value="6">6 h</option><option value="24" selected>24 h</option><option value="168">7 d</option><option value="720">30 d</option></select></span></h2>
+    <div class="cols2">
+      <div><div class="meter-row"><span>Internet latency (ping <span id="wt"></span>)</span><span id="lat-now"></span></div><svg class="chart" id="ch-wan"></svg></div>
+      <div><div class="meter-row"><span>Gateway latency (Wi-Fi hop)</span><span id="gw-now"></span></div><svg class="chart" id="ch-gw"></svg></div>
+      <div><div class="meter-row"><span>WAN download (whole home)</span><span id="rx-now"></span></div><svg class="chart" id="ch-rx"></svg></div>
+      <div><div class="meter-row"><span>WAN upload (whole home)</span><span id="tx-now"></span></div><svg class="chart" id="ch-tx"></svg></div>
+    </div>
+    <div style="margin-top:12px"><div class="meter-row"><span>Availability</span><span id="avail-pct"></span></div>
+      <div class="strip" id="strip"></div><div class="strip-lbl"><span id="strip-l"></span><span>■ up &nbsp; <span style="color:var(--warn)">■</span> degraded &nbsp; <span style="color:var(--crit)">■</span> down &nbsp; <span style="color:#2a4a5e">■</span> no data</span><span>now</span></div></div>
+  </section>
+
+  <section class="panel c4" data-v="internet security" data-span="security:6"><h2>Diagnosis <span class="sub">rule engine · measured data only</span></h2><div id="findings"></div></section>
+
+  <section class="panel c6" data-v="internet"><h2>Speed test <span class="sub" id="sp-sub">Cloudflare</span></h2>
+    <div class="sp-top"><div id="sp-now" class="sp-now"></div><button id="sp-run">▶ Run speed test</button></div>
+    <div class="cols2"><div><div class="meter-row"><span>Download</span><span></span></div><svg class="chart" id="ch-spd"></svg></div>
+      <div><div class="meter-row"><span>Upload</span><span></span></div><svg class="chart" id="ch-spu"></svg></div></div>
+    <p class="note">Measured from this laptop over Wi-Fi to Cloudflare (about 45 MB per test), so it can read lower than your plan's speed when Wi-Fi is the bottleneck. Run it a few times at different hours before calling your internet provider.</p>
+  </section>
+  <section class="panel c6" data-v="internet"><h2>Outage report <span class="sub" id="out-sub">last 30 days</span></h2>
+    <div id="out-sum" class="out-sum"></div>
+    <div class="tbl-wrap" style="max-height:260px;overflow:auto"><table><thead><tr><th>Started</th><th>Lasted</th><th>Where</th></tr></thead><tbody id="out-tb"></tbody></table></div>
+    <p class="note">Built from the internet check every 60 s. An outage is 2+ failed checks in a row; a single failed check is listed as a blip. “Wi-Fi / laptop ↔ gateway” means this laptop couldn't reach the gateway either, so the internet itself may have been fine for everyone else. Time when this laptop was off isn't counted.</p>
+  </section>
+  <section class="panel c6" data-v="internet"><h2>Data usage <span class="sub" id="du-sub">whole home · from the gateway</span></h2>
+    <div id="du"></div>
+    <p class="note">Everything your home sent and received on the internet, counted from the router's own counters every minute (AT&amp;T gateways only, set ROUTER=att). Time the laptop was off is added to the day it came back.</p>
+  </section>
+  <section class="panel c6" data-v="internet"><h2>Website checker <span class="sub" id="ws-sub">every 5 min · phone alert if one goes down</span></h2>
+    <div id="ws"></div>
+    <div class="controls" style="margin-top:10px"><input id="ws-url" placeholder="Website, e.g. netflix.com" maxlength="300" style="flex:2;min-width:180px" aria-label="Website">
+      <input id="ws-name" placeholder="Name (optional)" maxlength="40" style="flex:1;min-width:120px" aria-label="Name"><button id="ws-add">Add</button><button id="ws-check" title="Check all now">⟳ Check now</button></div>
+    <p class="note">You get a phone alert when a site fails two checks in a row while your own internet is fine, and again when it's back. Answers like "403" still count as up: the site answered, it just doesn't like robots.</p>
+  </section>
+  <section class="panel c12" data-v="only internet"><h2>Wi-Fi neighbors <span class="sub" id="wf-sub">what this laptop can hear</span></h2>
+    <div id="wf"></div>
+  </section>
+
+  <!-- topology + system -->
+  <section class="panel c8" data-v="devices" data-span="devices:12"><h2>Network map <span class="sub" id="topo-sub"></span></h2><svg id="topo" role="img" aria-label="Network topology"></svg>
+    <p class="note">Map built from the gateway's connected-device list and this PC's neighbor table. Link type comes from the gateway; mesh/extender placement is not reported, so wireless clients are drawn off the gateway.</p></section>
+  <section class="panel c4" data-v="system"><h2>This computer <span class="sub" id="host-sub"></span></h2><div id="sys"></div></section>
+  <section class="panel c12 vo-ok" data-v="only troubleshoot" id="why-panel"><h2>What's wrong? <span class="sub">the status badge and messages explained</span></h2>
+    <div id="why-now"></div>
+    <details class="why-ref"><summary>Every message, what it means and what to do</summary><div id="why-ref"></div></details></section>
+  <section class="panel c4 vo-ok" data-v="only tools" id="set-panel"><h2>Appearance <span class="sub">this browser only</span></h2><div id="set"></div></section>
+  <section class="panel c4" data-v="only tools"><h2>Live updates</h2><div id="sb-live"></div></section>
+  <section class="panel c4" data-v="only tools"><h2>Speed test</h2><div id="sb-spd"></div></section>
+  <section class="panel c6" data-v="only tools"><h2>Weekly report <span class="sub">phone alert only · never emailed</span></h2><div id="sb-wk"></div></section>
+  <section class="panel c6" data-v="only tools"><h2>Data usage</h2><div id="sb-du"></div></section>
+  <section class="panel c6" data-v="only tools"><h2>Website checker</h2><div id="sb-ws"></div></section>
+  <section class="panel c6 vo-ok" data-v="only tools"><h2>Wi-Fi neighbors <span class="sub">this browser only</span></h2><div id="sb-wf"></div></section>
+  <section class="panel c12" data-v="only system troubleshoot"><h2>Restart controls <span class="sub">every button asks first</span></h2>
+    <div class="rs-grid">
+      <div class="rs"><b>Dashboard</b><span class="sm">Restarts the Network Command Center only. Nobody's internet is affected.</span><button data-restart="dashboard">⟳ Restart dashboard</button></div>
+      <div class="rs"><b>Pi-hole</b><span class="sm">Restarts Pi-hole's DNS + DHCP. About a 5-second pause in lookups for the whole house.</span><button data-restart="pihole">⟳ Restart Pi-hole</button></div>
+      <div class="rs"><b>This laptop</b><span class="sm">Full reboot. Pi-hole is down for about 1-2 minutes, so the house can't load new sites until it's back.</span><button class="danger" data-restart="laptop">⏻ Reboot laptop</button></div>
+      <div class="rs" id="rs-gw"><b>House Wi-Fi (router)</b><span class="sm">Not automated: the dashboard never signs in to your router. Do it by hand. Wi-Fi and internet go down for everyone for about 3-5 minutes:</span>
+        <ul class="sm" style="margin:0;padding-left:18px"><li><b>Your router's app</b> (most internet providers have one) → your router → Restart</li>
+        <li><b>Router settings page</b>: open the router's address in a browser (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; it's printed on the router) → look for Restart or Reboot</li>
+        <li>Or unplug the router's power for 10 seconds and plug it back in</li></ul></div>
+    </div>
+    <div id="rs-msg" class="sm" style="margin-top:8px"></div>
+  </section>
+
+  <!-- devices -->
+  <section class="panel c12" data-v="devices"><h2>Device inventory <span class="sub" id="dev-sub"></span></h2>
+    <div class="controls"><input id="dev-q" placeholder="Filter name / IP / MAC / vendor" aria-label="Filter devices" style="flex:1;min-width:180px">
+      <select id="dev-f" aria-label="Show"><option value="active">Active now</option><option value="recent">Seen in 7 days</option><option value="all">All known</option></select>
+      <button id="rescan">⟳ Rescan</button></div>
+    <div id="dev-blk" class="blkbar" hidden></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Status</th><th>Name <span class="muted" style="text-transform:none;letter-spacing:0">(✎ to rename)</span></th><th>IP</th><th>MAC</th><th>Vendor</th><th>Link</th><th>Type</th><th>Last seen</th></tr></thead><tbody id="dev-tb"></tbody></table></div>
+    <p class="note">"No ping reply" is common for phones, TVs, and IoT devices and does not mean the device is offline or a threat. Device types are guesses from names/vendors only. Names you give devices are stored only in this dashboard; nothing is changed on the gateway or the device.</p>
+    <p class="note"><b>Private addresses:</b> phones, tablets and watches usually join Wi-Fi with a made-up ("private") MAC address. On an iPhone set to <b>Fixed</b>, it stays the same for your network, so a name you give it sticks. Set to <b>Rotating</b>, it changes about every two weeks and the device reappears here as a new entry. When an unnamed private address has the same hostname as a device you named that's offline, the table asks whether it's the same device.</p>
+  </section>
+
+  <!-- pihole + security -->
+  <section class="panel c6" data-v="pihole" data-span="pihole:7"><h2>Pi-hole DNS filter</h2><div id="ph"></div></section>
+  <section class="panel c6" data-v="only pihole" data-span="pihole:5"><h2>Blocked by device <span class="sub">today</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Device</th><th>Blocked</th><th>of all lookups</th></tr></thead><tbody id="bbd-tb"></tbody></table></div>
+    <p class="note">Which devices try ads and trackers the most. Smart TVs and Windows PCs usually top the list. A high number is normal and doesn't mean the device is infected.</p>
+  </section>
+  <section class="panel c6" data-v="security"><h2>Security watch</h2><div id="sec"></div></section>
+
+  <!-- assistant + tools -->
+  <datalist id="makers"></datalist>
+  <datalist id="dtypes"><option>phone</option><option>tablet</option><option>laptop</option><option>desktop pc</option><option>tv / streaming</option><option>game console</option><option>smart speaker</option><option>smart home</option><option>camera</option><option>doorbell</option><option>printer</option><option>watch</option><option>wi-fi extender</option><option>network gear</option><option>guest device</option><option>other</option></datalist>
+  <section class="panel c12 vo-ok" data-v="only tools"><h2>MAC address lookup <span class="sub" id="ml-sub"></span></h2>
+    <div class="controls"><input id="ml-q" placeholder="Type the start of a MAC address, e.g. C0: or c0:3f:d5" style="flex:1;min-width:220px" maxlength="17" spellcheck="false" autocomplete="off" aria-label="MAC address or prefix">
+      <select id="ml-f" aria-label="Show"><option value="all">All known devices</option><option value="active">Online now</option></select></div>
+    <p class="note" id="ml-info" style="margin:0 0 10px">Matches every device your gateway has seen whose MAC address starts with what you type. Separators (: or -) are optional.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Status</th><th>MAC</th><th>Name</th><th>Type</th><th>IP</th><th>Maker</th><th>Last seen</th><th></th></tr></thead><tbody id="ml-tb"></tbody></table></div>
+  </section>
+
+  <section class="panel c7 vo-ok" data-v="troubleshoot"><h2>Troubleshooting assistant <span class="sub" id="ai-sub"></span></h2>
+    <div class="controls">
+      <button data-topic="internet">Why is my internet down?</button><button data-topic="pihole">Is Pi-hole working?</button>
+      <button data-topic="unreachable">Which devices are unreachable?</button><button data-topic="slow">Why is my computer slow?</button>
+      <button data-topic="next">What should I check next?</button></div>
+    <div class="controls"><input id="q" placeholder="Ask in plain language…" style="flex:1;min-width:180px" maxlength="500" aria-label="Question"><button id="ask-ai">Ask Claude</button></div>
+    <div class="answer" id="answer"><span class="src">ready</span>Pick a question. Answers come from the live measurements on this page.</div>
+  </section>
+  <section class="panel c5 vo-ok" data-v="troubleshoot"><h2>Diagnostic tools <span class="sub">predefined · read-only</span></h2>
+    <div class="controls"><input id="tool-arg" placeholder="IP address or hostname" style="flex:1;min-width:160px" aria-label="Target">
+      <button data-act="ping">Ping</button><button data-act="dns">DNS lookup</button><button data-act="trace">Trace path</button></div>
+    <div class="answer" id="tool-out"><span class="src">output</span>Ping is limited to your own subnet. No shell input is accepted.</div>
+  </section>
+
+  <section class="panel c12" data-v="only pihole"><h2>Allow &amp; block lists <span class="sub" id="ls-sub"></span></h2>
+    <div class="controls">
+      <input id="ls-dom" placeholder="Domain or link, e.g. ads.example.com" style="flex:2;min-width:220px" maxlength="300" aria-label="Domain">
+      <label class="chk"><input type="checkbox" id="ls-wild"> include subdomains</label>
+      <input id="ls-cmt" placeholder="Note (optional)" style="flex:1;min-width:140px" maxlength="100" aria-label="Note">
+      <button id="ls-block" class="danger">⊘ Block</button><button id="ls-allow">✔ Allow</button><button id="ls-check" title="Is this domain blocked right now, and by what?">? Check</button>
+    </div>
+    <div class="answer" id="ls-out" style="min-height:0"><span class="src">ready</span>Type a domain, then Block or Allow it, or Check what Pi-hole does with it now.</div>
+    <div class="controls" style="margin-top:12px"><input id="ls-q" placeholder="Filter your entries" aria-label="Filter entries" style="flex:1;min-width:160px">
+      <select id="ls-f" aria-label="Show"><option value="">All entries</option><option value="deny">Blocked</option><option value="allow">Allowed</option></select>
+      <button id="ls-restart" title="Restart Pi-hole's DNS service (a second or two without DNS)">⟳ Restart Pi-hole DNS</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Domain</th><th>List</th><th>Covers</th><th>Note</th><th>Added</th><th></th></tr></thead><tbody id="ls-tb"></tbody></table></div>
+    <p class="note">Changes apply to every device that uses this Pi-hole for DNS, and an allowed domain wins over the blocklists. Pi-hole applies a change within a second. The dashboard then does a test lookup and, if Pi-hole is still giving the old answer, restarts Pi-hole's DNS automatically. Phones and browsers keep their own DNS cache for a minute or two, so a change can take that long to show on a device.</p>
+  </section>
+
+  <section class="panel c3 gtoc" data-v="only guide"><h2>Contents</h2>
+    <input id="g-q" type="search" placeholder="Search the guide…" aria-label="Search the guide" autocomplete="off">
+    <ol id="g-toc"></ol></section>
+  <section class="panel c9" data-v="only guide"><article class="guide" id="guide"><p class="note">Loading guide…</p></article></section>
+
+  <section class="panel c12" data-v="security"><h2>Event log <span class="sub">outages · recoveries · alerts</span></h2><div id="events" style="max-height:300px;overflow:auto"></div></section>
+  <section class="panel c12" data-v="only security"><h2>Web access <span class="sub">any browser, no Tailscale · family accounts</span></h2><div id="wa"></div></section>
+  <section class="panel c12" data-v="only security"><h2>Remote access &amp; phone app <span class="sub">Tailscale</span></h2><div id="ra"></div></section>
+  <section class="panel c12" data-v="only security"><h2>Remote desktop <span class="sub">Ubuntu Remote Login</span></h2><div id="rd"></div></section>
+  <section class="panel c12" data-v="only security"><h2>Phone alerts <span class="sub">ntfy</span></h2><div id="al"></div></section>
+  <section class="panel c12" data-v="only security"><h2>Email sending <span class="sub">Gmail</span></h2><div id="gm"></div></section>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const TOKEN="__CSRF__";
+// surface script errors on the page (body[data-err]) so a broken panel is diagnosable
+addEventListener("error",e=>{document.body.dataset.err=`${e.message} @${e.lineno}:${e.colno}`});
+addEventListener("unhandledrejection",e=>{document.body.dataset.err=String(e.reason&&e.reason.stack||e.reason).slice(0,300)});
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtB=b=>{if(b==null)return"—";const u=["B","KiB","MiB","GiB","TiB"];let i=0;while(b>=1024&&i<4){b/=1024;i++}return b.toFixed(i?1:0)+" "+u[i]};
+const fmtbps=b=>{if(b==null)return"—";const u=["bps","Kbps","Mbps","Gbps"];let i=0;while(b>=1000&&i<3){b/=1000;i++}return b.toFixed(b<10&&i?1:0)+" "+u[i]};
+const fmtDur=s=>{s=Math.floor(s);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:h?`${h}h ${m}m`:`${m}m`};
+const ago=ts=>ts?fmtDur(Date.now()/1000-ts)+" ago":"never";
+const chip=(lvl,txt)=>`<span class="chip ${lvl}"><span class="dot"></span>${esc(txt)}</span>`;
+const ICON={good:"✔",warn:"▲",crit:"✖",info:"•"};
+async function api(p,body){const r=await fetch(p,body?{method:"POST",headers:{"Content-Type":"application/json","X-NCC-Token":TOKEN},body:JSON.stringify(body)}:{});if(r.status===401){location.reload();return{}}const j=await r.json();if(r.status===403&&j.error==="forbidden")j.error="The dashboard was restarted. Press Ctrl+R to reload, then try again.";return j}
+let S=null,DEV=[],HIST=[],LISTS=null,EDIT=null,BYIP={},BLK={},CAN_BLOCK=false;
+const isPriv=m=>!!(parseInt((m||"00")[1],16)&2);
+const dname=d=>d.label||d.name||"";
+
+function tiles(){
+  const l=S.last; if(!l.ts) return;
+  const up=S.uptime["24h"];
+  $("#t-net").innerHTML=`${l.internet?chip("good","Online"):chip("crit","Offline")}
+    <div class="big">${up.internet??"—"}<small>% 24h</small></div><div class="meta">HTTPS ${l.https.ok?"✔ "+l.https.ms+" ms":"✖ failed"}${l.down_since?" · down "+fmtDur(Date.now()/1000-l.down_since):""}</div>`;
+  const gi=S.gateway.info||{}, bb=S.gateway.broadband||{};
+  $("#t-gw").innerHTML=`${l.gw.ok?chip("good","Reachable"):chip("crit","No reply")}
+    <div class="big">${l.gw.ms!=null?l.gw.ms.toFixed(1):"—"}<small>ms</small></div><div class="meta">${esc(gi["Model Number"]||"gateway")} · ${esc(l.gateway_ip)} · WAN ${esc(bb.connection||"?")}</div>`;
+  const wl=l.wan.loss;
+  $("#t-lat").innerHTML=`${!l.wan.ok?chip("crit","Unreachable"):wl>0||l.wan.ms>80?chip("warn","Degraded"):chip("good","Nominal")}
+    <div class="big">${l.wan.ms!=null?l.wan.ms.toFixed(1):"—"}<small>ms</small></div><div class="meta">${esc(S.config.wan_target)} · loss ${wl}%</div>`;
+  $("#t-dns").innerHTML=`${l.dns.ok?chip("good","Resolving"):chip("crit","Failing")}
+    <div class="big">${l.dns.ms??"—"}<small>ms</small></div><div class="meta">system resolver → gateway</div>`;
+  const p=S.pihole;
+  $("#t-ph").innerHTML=!p.configured?`${chip("off","Not linked")}<div class="big">—</div><div class="meta">configure PIHOLE_URL</div>`:
+    `${!p.ok?chip("crit","Down"):(p.blocking==="enabled"||p.blocking===true)?chip("good","Blocking"):chip("warn",String(p.blocking||"unknown"))}
+    <div class="big">${p.pct!=null?Number(p.pct).toFixed(1):"—"}<small>% blocked</small></div><div class="meta">${p.total??"—"} queries</div>`;
+  $("#t-tp").innerHTML=`${bb.rx_bps!=null?chip("info","WAN link "+(bb.speed||"?")+"M"):chip("off","No data")}
+    <div class="big">${fmtbps(bb.rx_bps).split(" ")[0]}<small>${fmtbps(bb.rx_bps).split(" ")[1]||""} ↓</small></div><div class="meta">↑ ${fmtbps(bb.tx_bps)} · whole home</div>`;
+  const bad=S.findings.filter(f=>f.level==="crit").length, warn=S.findings.filter(f=>f.level==="warn").length;
+  $("#overall").outerHTML=`<span id="overall" class="chip ${bad?"crit":warn?"warn":"good"}" title="What does this mean? Click for details" role="button" tabindex="0"><span class="dot"></span>${bad?"Critical":warn?"Attention":"All systems nominal"}</span>`;
+  whyUI();
+  $("#updated").textContent="updated "+new Date(l.ts*1000).toLocaleTimeString();
+  $("#wt").textContent=S.config.wan_target;
+  $("#lat-now").textContent=l.wan.ms!=null?l.wan.ms.toFixed(1)+" ms":"—";
+  $("#gw-now").textContent=l.gw.ms!=null?l.gw.ms.toFixed(1)+" ms":"—";
+  $("#rx-now").textContent=fmtbps(bb.rx_bps); $("#tx-now").textContent=fmtbps(bb.tx_bps);
+}
+
+function findings(){
+  $("#findings").innerHTML=S.findings.map(f=>`<div class="find ${f.level}"><span class="ic" aria-label="${f.level}">${ICON[f.level]||"•"}</span><div><b>${esc(f.title)}</b><span>${esc(f.detail)}</span></div></div>`).join("");
+}
+
+function sys(){
+  const s=S.last.sys; if(!s) return;
+  const lvl=p=>p>90?"crit":p>80?"warn":"";
+  const m=(label,pct,txt)=>`<div class="meter-row"><span>${label}</span><span>${txt}</span></div><div class="bar"><i class="${lvl(pct)}" style="width:${Math.min(100,pct||0)}%"></i></div>`;
+  const swapPct=s.swap_total?100*s.swap_used/s.swap_total:0;
+  const t=s.temp; const tpct=t?Math.min(100,t):0;
+  $("#host-sub").textContent="up "+fmtDur(s.uptime);
+  $("#sys").innerHTML=
+    m("CPU",s.cpu,(s.cpu??"—")+"% · load "+s.load.join(" "))+
+    m("Memory",s.mem_pct,`${fmtB(s.mem_total-s.mem_avail)} / ${fmtB(s.mem_total)} · ${fmtB(s.mem_avail)} free`)+
+    m("Swap",swapPct,`${fmtB(s.swap_used)} / ${fmtB(s.swap_total)}`)+
+    m("Disk /",s.disk_pct,`${fmtB(s.disk_free)} free of ${fmtB(s.disk_total)}`)+
+    (t!=null?`<div class="meter-row"><span>CPU temperature</span><span>${(t*9/5+32).toFixed(0)} °F</span></div><div class="bar"><i class="${t>=90?"crit":t>=80?"warn":""}" style="width:${tpct}%"></i></div>`:`<div class="meter-row"><span>CPU temperature</span><span>not exposed by hardware</span></div>`)+
+    `<dl class="kv">${s.battery?`<dt>Battery</dt><dd>${s.battery.pct}% · ${esc(s.battery.status)}</dd>`:""}
+    <dt>Dashboard RAM</dt><dd>${fmtB(s.ncc_rss)}</dd><dt>Check interval</dt><dd>${esc(S.config.interval)} s</dd>
+    <dt>Samples (24h)</dt><dd>${S.uptime["24h"].samples}</dd></dl>`;
+}
+
+function lineChart(el,data,key,{fmt=v=>v,color="var(--cyan)",ymax:yfloor=0}={}){
+  if(!el||el.getClientRects().length===0)return; // hidden in this dashboard
+  const W=el.clientWidth||400,H=el.clientHeight||150,P={l:62,r:8,t:8,b:20};
+  el.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const pts=data.filter(d=>d[key]!=null);
+  if(pts.length<2){el.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle">collecting data…</text>`;el.onmousemove=null;return}
+  const x0=data[0].ts,x1=data[data.length-1].ts;
+  let ymax=Math.max(...pts.map(d=>d[key])); ymax=Math.max(ymax<=0?1:ymax*1.15,yfloor); const ymin=0;
+  const X=t=>P.l+(t-x0)/(x1-x0||1)*(W-P.l-P.r), Y=v=>P.t+(1-(v-ymin)/(ymax-ymin))*(H-P.t-P.b);
+  const gap=Math.max(180,(x1-x0)/data.length*3);
+  let d="",prev=null;
+  for(const p of pts){d+=(prev&&p.ts-prev.ts<=gap?"L":"M")+X(p.ts).toFixed(1)+" "+Y(p[key]).toFixed(1);prev=p}
+  let g="";const nt=H<130?2:3;for(let i=0;i<=nt;i++){const v=ymin+(ymax-ymin)*i/nt,y=Y(v);g+=`<line class="grid" x1="${P.l}" x2="${W-P.r}" y1="${y}" y2="${y}"/><text x="${P.l-6}" y="${y+3}" text-anchor="end">${fmt(v)}</text>`}
+  const span=x1-x0, tf=t=>{const dt=new Date(t*1000);return span>172800?dt.toLocaleDateString([], {month:"short",day:"numeric"}):span<900?(x1-t<1?"now":x1-t<120?"−"+Math.round(x1-t)+" s":"−"+Math.round((x1-t)/60)+" min"):dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})};
+  const nx=W<360?1:3;for(let i=0;i<=nx;i++){const t=x0+span*i/nx;g+=`<text x="${X(t)}" y="${H-5}" text-anchor="${i==0?"start":i==nx?"end":"middle"}">${tf(t)}</text>`}
+  el.innerHTML=g+`<path class="ln" d="${d}" stroke="${color}"/><line class="xh" id="xh" y1="${P.t}" y2="${H-P.b}" style="display:none"/><circle id="xd" r="4" fill="${color}" stroke="var(--panel)" stroke-width="2" style="display:none"/>`;
+  const tip=$("#tip"),xh=el.querySelector("#xh"),xd=el.querySelector("#xd");
+  el.onmousemove=e=>{const r=el.getBoundingClientRect(),mx=(e.clientX-r.left)*W/r.width;const t=x0+(mx-P.l)/(W-P.l-P.r)*(x1-x0);
+    let best=pts[0];for(const p of pts)if(Math.abs(p.ts-t)<Math.abs(best.ts-t))best=p;
+    const bx=X(best.ts),by=Y(best[key]);xh.setAttribute("x1",bx);xh.setAttribute("x2",bx);xh.style.display="";xd.setAttribute("cx",bx);xd.setAttribute("cy",by);xd.style.display="";
+    tip.innerHTML=`<div class="t">${new Date(best.ts*1000).toLocaleString()}</div>${esc(fmt(best[key]))}`;tip.style.display="block";
+    tip.style.left=Math.min(innerWidth-160,e.clientX+12)+"px";tip.style.top=(e.clientY-40)+"px"};
+  el.onmouseleave=()=>{tip.style.display="none";xh.style.display="none";xd.style.display="none"};
+}
+
+function strip(){
+  const hrs=+$("#range").value,now=Date.now()/1000,N=Math.min(innerWidth<700?48:96,hrs*4),bw=hrs*3600/N;
+  const b=Array.from({length:N},()=>({n:0,up:0}));
+  for(const h of HIST){const i=Math.floor((h.ts-(now-hrs*3600))/bw);if(i>=0&&i<N){b[i].n++;b[i].up+=h.internet}}
+  $("#strip").innerHTML=b.map((x,i)=>{const st=new Date((now-hrs*3600+i*bw)*1000).toLocaleString();
+    if(!x.n)return`<i title="${st}: no data"></i>`;const r=x.up/x.n;return`<i class="${r==1?"g":r>0?"w":"c"}" title="${st}: ${(r*100).toFixed(0)}% up (${x.n} checks)"></i>`}).join("");
+  $("#strip-l").textContent=hrs>=168?(hrs/24)+" days ago":hrs+" h ago";
+  const tot=HIST.length,up=HIST.reduce((a,h)=>a+h.internet,0);$("#avail-pct").textContent=tot?(100*up/tot).toFixed(2)+"% over "+tot+" checks":"—";
+}
+
+let SPD=null,OUT=null,BBD=null,SET=null;
+// ---- Settings card (Tools & settings): live update speed and the speed test schedule
+const everyTxt=m=>m<60?`every ${m} min`:m===60?"every hour":`every ${m/60} hours`;
+const at12=t=>{const[h,m]=t.split(":").map(Number);return new Date(2000,0,1,h,m).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})};
+function spSched(){if(!SET)return"scheduled";return SET.speedtest_mode==="off"?"automatic tests off":SET.speedtest_mode==="daily"?"daily at "+at12(SET.speedtest_at):everyTxt(SET.speedtest_every_min)}
+const gbMonth=m=>(45*(1440/m)*30/1000);
+// per-browser preferences (no server round trip): text size, accent, live chart length, Wi-Fi filters
+const PREF=(k,d)=>{try{const v=localStorage.getItem("ncc-"+k);return v==null?d:JSON.parse(v)}catch(e){return d}};
+const setPref=(k,v)=>{try{localStorage.setItem("ncc-"+k,JSON.stringify(v))}catch(e){}};
+let CHART_S=PREF("chart-min",5)*60;
+document.addEventListener("DOMContentLoaded",()=>{const w=document.getElementById("lt-win");if(w)w.textContent=CHART_S/60+" min"});
+const SECTIONS=[["internet","🌐 Internet uptime and outages"],["speed","⚡ Average speed"],["data","📶 Data used"],["pihole","🛡 Ads blocked"],
+  ["devices","📱 New devices"],["signins","🔐 Web sign-ins"],["sites","🌍 Websites"],["laptop","💻 Laptop restarts"]];
+const saveRow=k=>`<p style="margin-top:12px"><button data-save="${k}">Save</button> <span class="sm" id="msg-${k}"></span></p>`;
+async function settingsUI(){
+  SET=await api("/api/settings");if(!SET||SET.live_period==null){$("#set").innerHTML='<p class="note">Couldn\'t load settings.</p>';return}
+  const opt=(v,t,cur)=>`<option value="${v}" ${v===cur?"selected":""}>${t}</option>`;
+  const sel=(id,opts,cur,lbl)=>`<select id="${id}" aria-label="${lbl}">${opts.map(([v,t])=>opt(v,t,cur)).join("")}</select>`;
+  $("#set").innerHTML=`<p class="sm">Style ${sel("set-style",[["scifi","Sci-fi"],["hacker","Hacker"],["clean","Clean"]],document.documentElement.dataset.style,"Style")}</p>
+    <p class="sm">Theme ${sel("set-theme",[["dark","Dark"],["light","Light"],["auto","Match this device"]],nccThemeGet(),"Theme")}</p>
+    <p class="sm">Text size ${sel("set-size",[["0.9","Smaller"],["1","Normal"],["1.15","Larger"],["1.3","Largest"]],String(PREF("size",1)),"Text size")}</p>
+    <p class="sm">Accent color ${sel("set-accent",[["cyan","Cyan"],["green","Green"],["purple","Purple"],["orange","Orange"],["pink","Pink"]],PREF("accent","cyan"),"Accent color")}</p>
+    <p class="note">These change right away and are saved for this browser only, so each person can pick their own.</p>`;
+  $("#sb-live").innerHTML=`<p class="sm">Update every ${sel("set-live",SET.live_periods.map(v=>[v,v===1?"second":v+" seconds"]),SET.live_period,"Update speed")}</p>
+    <p class="sm">Live charts show the last ${sel("set-chart",[[5,"5 minutes"],[10,"10 minutes"],[15,"15 minutes"],[30,"30 minutes"]],PREF("chart-min",5),"Chart length")} <span class="muted">(this browser)</span></p>
+    <p class="note">How often the dashboard and Display mode refresh CPU, ping, download right now and Pi-hole. Faster uses a little more of the laptop's CPU while a dashboard is open (about 3% at every second).</p>${saveRow("live")}`;
+  $("#sb-spd").innerHTML=`<p class="sm">${sel("set-mode",[["every","Repeat"],["daily","Once a day"],["off","Off (only when I press Run)"]],SET.speedtest_mode,"Schedule")}
+      <select id="set-every" aria-label="How often">${SET.speed_every.map(v=>opt(v,everyTxt(v),SET.speedtest_every_min)).join("")}</select>
+      <input id="set-at" type="time" value="${esc(SET.speedtest_at)}" aria-label="Time of day"></p>
+    <p class="sm" id="set-quiet-row"><label><input type="checkbox" id="set-quiet" ${SET.speed_quiet_on?"checked":""}> Quiet hours: no tests from</label>
+      <input id="set-qf" type="time" value="${esc(SET.speed_quiet_from)}" aria-label="Quiet from"> to <input id="set-qt" type="time" value="${esc(SET.speed_quiet_to)}" aria-label="Quiet until"></p>
+    <p class="sm">Phone alert if download is below <input id="set-slow" type="number" min="0" max="5000" step="5" value="${SET.speed_alert_mbps||0}" style="width:80px" aria-label="Mbps"> Mbps <span class="muted">(0 = off)</span></p>
+    <p class="note" id="set-data"></p>${saveRow("spd")}`;
+  const ws=new Set(SET.weekly_sections||SECTIONS.map(x=>x[0]));
+  $("#sb-wk").innerHTML=`<p class="sm"><label><input type="checkbox" id="set-wk" ${SET.weekly_report?"checked":""}> Send it every</label>
+      ${sel("set-wkd",["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((d,i)=>[i,d]),SET.weekly_day,"Day")} at
+      <select id="set-wkh" aria-label="Hour">${[...Array(24).keys()].map(h=>opt(h,new Date(2000,0,1,h).toLocaleTimeString([], {hour:"numeric"}),SET.weekly_hour)).join("")}</select></p>
+    <p class="sm" style="margin-bottom:4px">Include:</p>
+    <div class="sm" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 12px">${SECTIONS.map(([k,t])=>`<label><input type="checkbox" data-wks="${k}" ${ws.has(k)?"checked":""}> ${t}</label>`).join("")}</div>
+    <p class="sm" style="margin-top:10px"><button id="wk-prev">Preview</button> <button id="wk-send">Send it now</button> <span id="wk-msg" class="sm"></span></p>
+    <pre id="wk-text" class="answer" hidden></pre>${saveRow("wk")}`;
+  $("#sb-du").innerHTML=`<p class="sm">Monthly data cap ${`<input id="set-cap" type="number" min="0" max="100000" step="50" value="${SET.data_cap_gb||0}" style="width:90px" aria-label="GB">`} GB <span class="muted">(0 = no cap)</span></p>
+    <p class="sm">My bill's month starts on day <input id="set-bill" type="number" min="1" max="28" value="${SET.billing_day||1}" style="width:60px" aria-label="Billing day"> <span class="muted">(1-28)</span></p>
+    <p class="note">With a cap, you get a phone alert at 80% and at 100% each billing month, and the Data usage box shows how much is left. Many fiber plans have no cap. Usage is counted by the router (AT&amp;T gateways only), so it can differ a little from your provider's bill.</p>${saveRow("du")}`;
+  $("#sb-ws").innerHTML=`<p class="sm">Check every ${sel("set-wsi",[[1,"minute"],[5,"5 minutes"],[15,"15 minutes"],[30,"30 minutes"],[60,"hour"]],SET.site_interval_min,"Check interval")}</p>
+    <p class="sm">Alert after ${sel("set-wsf",[[1,"1 failed check"],[2,"2 failed checks in a row"],[3,"3 failed checks in a row"],[5,"5 failed checks in a row"]],SET.site_fail_n,"Failures before alert")}</p>
+    <p class="sm">Mark a site "slow" above <input id="set-wss" type="number" min="0" max="60000" step="100" value="${SET.site_slow_ms||0}" style="width:90px" aria-label="ms"> ms <span class="muted">(0 = off)</span></p>
+    <p class="note">Sites are added and removed on the Internet tab. More failures before an alert means fewer false alarms but slower news.</p>${saveRow("ws")}`;
+  const wf=PREF("wifi",{band:"all",min:0,hidden:true});
+  $("#sb-wf").innerHTML=`<p class="sm">Show ${sel("set-wfb",[["all","all bands"],["2.4 GHz","2.4 GHz only"],["5 GHz","5 GHz only"]],wf.band,"Bands")}</p>
+    <p class="sm">Hide networks weaker than ${sel("set-wfm",[[0,"(show all)"],[30,"30%"],[50,"50%"],[70,"70%"]],wf.min,"Minimum signal")}</p>
+    <p class="sm"><label><input type="checkbox" id="set-wfh" ${wf.hidden?"checked":""}> Show hidden networks</label></p>
+    <p class="note">Changes the Wi-Fi neighbors list on the Internet tab right away, in this browser. Your own networks always show.</p>`;
+  setShow();
+}
+function setShow(){
+  const mode=$("#set-mode").value,m=+$("#set-every").value;
+  $("#set-every").hidden=mode!=="every";$("#set-at").hidden=mode!=="daily";$("#set-quiet-row").hidden=mode!=="every";
+  $("#set-data").textContent=mode==="off"?"No automatic tests, no data used.":
+    `Each test uses about 45 MB and slows the internet a little for 10-20 seconds. `+
+    (mode==="daily"?"About 1.4 GB a month.":`About ${gbMonth(m)<10?gbMonth(m).toFixed(1):Math.round(gbMonth(m))} GB a month${$("#set-quiet").checked?", less with quiet hours":""}.`)+
+    (mode==="every"&&m<=10?" That's a lot: only use it for a short check, then change it back.":"");
+}
+document.addEventListener("change",e=>{if(["set-mode","set-every","set-quiet"].includes(e.target.id))setShow()});
+document.addEventListener("click",async e=>{
+  if(e.target.id==="wk-prev"){const r=await api("/api/report/weekly");$("#wk-text").hidden=false;$("#wk-text").textContent=r.text||"—";return}
+  if(e.target.id==="wk-send"){$("#wk-msg").textContent="Sending…";const r=await api("/api/report/weekly",{});$("#wk-msg").textContent=r.error?"✖ "+r.error:"✔ Sent. Check the ntfy app."}});
+// per-browser settings apply as soon as they change
+document.addEventListener("change",e=>{const id=e.target.id,v=e.target.value;
+  if(id==="set-theme"){nccTheme(v);try{charts()}catch(x){}}
+  if(id==="set-size"){setPref("size",+v);nccLook()}
+  if(id==="set-style"){setPref("style",v);nccLook();try{charts()}catch(x){}}
+  if(id==="set-accent"){setPref("accent",v);nccLook();try{charts()}catch(x){}}
+  if(id==="set-chart"){setPref("chart-min",+v);CHART_S=+v*60;$("#lt-win").textContent=v+" min"}
+  if(["set-wfb","set-wfm","set-wfh"].includes(id)){setPref("wifi",{band:$("#set-wfb").value,min:+$("#set-wfm").value,hidden:$("#set-wfh").checked});if($("#wf").innerHTML)wifiUI()}});
+const SAVE={
+  live:()=>({live_period:+$("#set-live").value}),
+  spd:()=>({speedtest_mode:$("#set-mode").value,speedtest_every_min:+$("#set-every").value,speedtest_at:$("#set-at").value,
+    speed_quiet_on:$("#set-quiet").checked,speed_quiet_from:$("#set-qf").value,speed_quiet_to:$("#set-qt").value,speed_alert_mbps:Math.round(+$("#set-slow").value||0)}),
+  wk:()=>({weekly_report:$("#set-wk").checked,weekly_day:+$("#set-wkd").value,weekly_hour:+$("#set-wkh").value,
+    weekly_sections:[...document.querySelectorAll("[data-wks]")].filter(x=>x.checked).map(x=>x.dataset.wks)}),
+  du:()=>({data_cap_gb:Math.round(+$("#set-cap").value||0),billing_day:Math.round(+$("#set-bill").value||1)}),
+  ws:()=>({site_interval_min:+$("#set-wsi").value,site_fail_n:+$("#set-wsf").value,site_slow_ms:Math.round(+$("#set-wss").value||0)})};
+document.addEventListener("click",async e=>{const k=e.target.dataset&&e.target.dataset.save;if(!k||!SAVE[k])return;
+  const m=$("#msg-"+k);m.textContent="Saving…";const r=await api("/api/settings",SAVE[k]());
+  if(r.error){m.textContent="✖ "+r.error;return}
+  SET={...SET,...r};m.textContent="✔ Saved";setTimeout(()=>{if(m.textContent==="✔ Saved")m.textContent=""},4000);speedUI();
+  if(k==="du"||k==="ws")internetExtras()});
+const fmtMin=s=>s<60?Math.round(s)+" s":s<3600?Math.round(s/60)+" min":(s/3600).toFixed(1)+" h";
+async function loadExtras(){
+  const [sp,ou,bb]=await Promise.all([api("/api/speedtest"),api("/api/outages"),api("/api/pihole/blocked_by_device")]);
+  SPD=sp;OUT=ou;BBD=bb;speedUI();outagesUI();bbdUI();
+}
+function speedUI(){
+  if(!SPD)return;const t=SPD.tests,l=t[t.length-1];
+  $("#sp-now").innerHTML=l?`<div><div class="sm muted">Download</div><div class="big">${l.down_mbps}<small> Mbps</small></div></div>
+    <div><div class="sm muted">Upload</div><div class="big">${l.up_mbps}<small> Mbps</small></div></div>
+    <div><div class="sm muted">Latency</div><div class="big">${l.ping_ms}<small> ms</small></div></div>
+    <div><div class="sm muted">Last test</div><div>${ago(l.ts)}<div class="sm muted">${esc(l.trigger)}</div></div></div>`:'<span class="muted">No tests yet. Press Run, or wait for the next scheduled test.</span>';
+  const r=$("#sp-run");r.disabled=SPD.running;r.textContent=SPD.running?`Testing ${SPD.phase||""}…`:"▶ Run speed test";
+  $("#sp-sub").textContent=`Cloudflare · ${spSched()} · ${t.length} test${t.length===1?"":"s"} in 30 days`+(SPD.last_error?` · last error: ${SPD.last_error}`:"");
+  lineChart($("#ch-spd"),t,"down_mbps",{fmt:v=>v.toFixed(0)+" Mbps",color:"var(--teal)",ymax:10});
+  lineChart($("#ch-spu"),t,"up_mbps",{fmt:v=>v.toFixed(0)+" Mbps",color:"var(--blue)",ymax:10});
+}
+$("#sp-run").addEventListener("click",async()=>{
+  const r=await api("/api/speedtest",{});if(r.error){alert(r.error);return}
+  SPD.running=true;SPD.phase="";speedUI();
+  const poll=async()=>{SPD=await api("/api/speedtest");speedUI();if(SPD.running)setTimeout(poll,2000)};setTimeout(poll,2000);
+});
+
+// ---- Data usage, Website checker, Wi-Fi neighbors (Internet tab)
+const GB=b=>b>=1e12?(b/1e12).toFixed(2)+" TB":b>=1e9?(b/1e9).toFixed(1)+" GB":(b/1e6).toFixed(0)+" MB";
+async function usageUI(){
+  const u=await api("/api/usage");if(!u||!u.month)return;const d=u.days||[];
+  const dshort=x=>new Date(x+"T12:00").toLocaleDateString([], {month:"short",day:"numeric"});
+  const mname=u.month.from.endsWith("-01")?new Date(u.month.from+"T12:00").toLocaleDateString([], {month:"long"}):"This billing month";
+  const capHtml=u.cap?(()=>{const p=Math.min(100,u.cap_pct),c=u.cap_pct>=100?"var(--crit)":u.cap_pct>=80?"var(--warn)":"var(--teal)";
+    return `<div style="margin-top:10px"><div class="meter-row"><span>${GB(u.month.total)} of ${GB(u.cap)} cap</span><span>${u.cap_pct}% · ${u.cap>u.month.total?GB(u.cap-u.month.total)+" left":"over the cap"}</span></div>
+      <div class="bar"><i style="width:${p}%;background:${c}"></i></div></div>`})():"";
+  const mx=Math.max(1,...d.map(x=>x.rx+x.tx)),W=600,H=120,bw=Math.min(28,W/Math.max(d.length,1)-2);
+  const bars=d.map((x,k)=>{const t=x.rx+x.tx,h=Math.max(1,t/mx*(H-18)),hx=x.tx/mx*(H-18),xx=k*(bw+2);
+    const lbl=new Date(x.day+"T12:00").toLocaleDateString([], {month:"short",day:"numeric"});
+    return `<g><title>${lbl}: ${GB(t)} (${GB(x.rx)} down, ${GB(x.tx)} up)</title><rect x="${xx}" y="${H-h}" width="${bw}" height="${h}" rx="2" fill="var(--teal)"/>${hx>=2?`<rect x="${xx}" y="${H-h}" width="${bw}" height="${hx}" fill="var(--blue)"/>`:""}<rect x="${xx-1}" y="0" width="${bw+2}" height="${H}" fill="transparent"/></g>`}).join("");
+  $("#du").innerHTML=`<div class="out-sum"><div><div class="sm muted">${esc(mname)} so far</div><div class="big">${GB(u.month.total)}</div><div class="sm muted">${GB(u.month.rx)} down · ${GB(u.month.tx)} up</div></div>
+    <div><div class="sm muted">Today</div><div class="big">${GB(u.today.rx+u.today.tx)}</div></div>
+    <div><div class="sm muted">Whole month at this pace</div><div class="big">${u.month.projected?GB(u.month.projected):"—"}</div>${u.month.projected?"":`<div class="sm muted">needs a full month of counting</div>`}</div></div>
+    ${capHtml}<p class="sm muted">Billing month ${dshort(u.month.from)} – ${dshort(u.month.until)}${u.cap?"":" · no cap set (Tools &amp; settings → Data usage)"}</p>
+    ${d.length?`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;margin-top:10px" preserveAspectRatio="none" aria-label="Data used per day">${bars}</svg>
+      <p class="sm muted"><span class="sw" style="background:var(--teal)"></span>download <span class="sw" style="background:var(--blue);margin-left:10px"></span>upload · one bar per day, hover for details</p>`
+      :'<p class="note">Counting started just now. The daily chart fills in from today on.</p>'}
+    ${u.tracking_since?`<p class="note">Counting since ${new Date(u.tracking_since+"T12:00").toLocaleDateString([], {month:"long",day:"numeric"})}.</p>`:""}`;
+}
+async function sitesUI(){
+  const r=await api("/api/sites");const ss=r.sites||[];const slow=r.slow_ms||0;
+  if(r.interval_min)$("#ws-sub").textContent=`every ${r.interval_min===1?"minute":r.interval_min===60?"hour":r.interval_min+" min"} · phone alert if one goes down`;
+  $("#ws").innerHTML=ss.length?`<ul class="toplist">${ss.map(x=>`<li><span>${x.ok==null?chip("off","checking…"):!x.ok?chip("crit","DOWN"):slow&&x.ms>slow?chip("warn","SLOW"):chip("good","UP")} <b>${esc(x.name)}</b>
+      <span class="muted sm"><br>${esc(x.url)}${x.ts?" · "+(x.ok?x.ms+" ms":esc(x.error||""))+" · checked "+ago(x.ts):""}</span></span>
+      <span><button class="danger" data-ws-rm="${esc(x.url)}" title="Stop checking">Remove</button></span></li>`).join("")}</ul>`
+    :'<p class="sm muted">No websites yet. Add ones your family relies on: school portal, streaming, work sites.</p>';
+}
+const CH24=[1,2,3,4,5,6,7,8,9,10,11];
+async function wifiUI(rescan){
+  $("#wf-sub").textContent=rescan?"scanning…":"what this laptop can hear";
+  const r=await api("/api/wifi"+(rescan?"?rescan=1":""));const pf=PREF("wifi",{band:"all",min:0,hidden:true});
+  const all=r.networks||[];const ns=all.filter(n=>n.home||((pf.band==="all"||n.band===pf.band)&&n.signal>=pf.min&&(pf.hidden||n.ssid!=="(hidden network)")));
+  const hiddenN=all.length-ns.length;
+  // one row per network name + band (routers show up several times, one per radio)
+  const g={};ns.forEach(n=>{const k=n.ssid+"|"+n.band;if(!g[k]||n.signal>g[k].signal)g[k]={...n,radios:0,chans:new Set()};g[k].radios++;g[k].chans.add(n.channel)});
+  const rows=Object.values(g).sort((a,b)=>(b.home-a.home)||(b.signal-a.signal));
+  const mine=ns.filter(n=>n.mine);
+  // crowding on 2.4 GHz: each network spills ±2 channels, so count overlap
+  const crowd=CH24.map(c=>all.filter(n=>n.band==="2.4 GHz"&&!n.home&&Math.abs(n.channel-c)<=2).length);
+  const cmax=Math.max(1,...crowd);
+  const homeCh=new Set(ns.filter(n=>n.home&&n.band==="2.4 GHz").map(n=>n.channel));
+  const best=[1,6,11].map(c=>({c,n:crowd[c-1]})).sort((a,b)=>a.n-b.n)[0];
+  const sig=v=>v>=70?chip("good",v+"%"):v>=40?chip("warn",v+"%"):chip("off",v+"%");
+  $("#wf").innerHTML=`<div class="cols2"><div>
+    <p class="sm">${mine.length?`This laptop is on <b>${esc(mine[0].ssid)}</b>, ${esc(mine[0].band)} channel ${mine[0].channel}, signal ${mine[0].signal}%.`:"This laptop isn't on Wi-Fi."}
+      ${all.filter(n=>!n.home).length} neighbor radio${all.filter(n=>!n.home).length===1?"":"s"} nearby.</p>
+    <b class="sm">2.4 GHz crowding</b> <span class="sm muted">(neighbors overlapping each channel)</span>
+    <div style="display:flex;gap:4px;align-items:flex-end;height:80px;margin:8px 0 2px">${crowd.map((n,k)=>`<div title="Channel ${k+1}: ${n} neighbor network${n===1?"":"s"} overlap" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+      <div style="height:${Math.max(3,n/cmax*70)}px;background:${homeCh.has(k+1)?"var(--cyan)":"var(--line2)"};border-radius:3px 3px 0 0"></div></div>`).join("")}</div>
+    <div style="display:flex;gap:4px">${CH24.map(c=>`<div class="sm muted" style="flex:1;text-align:center">${c}</div>`).join("")}</div>
+    <p class="note"><span class="sw" style="background:var(--cyan)"></span>= your network's channel. ${homeCh.size?(best&&!homeCh.has(best.c)&&crowd[[...homeCh][0]-1]>best.n+1?`Channel ${best.c} looks quieter. You could switch to it in the gateway's Wi-Fi settings (or set the channel to Auto).`:"Your 2.4 GHz channel is a reasonable choice."):""} 5 GHz is usually much less crowded, and phones and laptops prefer it when close to the gateway.</p>
+    <button id="wf-scan">⟳ Scan again</button> <span class="sm muted">${r.ts?"scanned "+ago(r.ts):""}</span>
+  </div><div>
+    <div class="tbl-wrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>Network</th><th>Band</th><th>Channel</th><th>Signal</th></tr></thead><tbody>
+    ${rows.map(n=>`<tr><td>${n.home?"🏠 ":""}${esc(n.ssid)}${n.radios>1?` <span class="muted sm">×${n.radios}</span>`:""}${n.security==="open"?" "+chip("warn","open"):""}</td><td>${esc(n.band)}</td><td>${[...n.chans].sort((a,b)=>a-b).join(", ")}</td><td>${sig(n.signal)}</td></tr>`).join("")}</tbody></table></div>
+    ${hiddenN?`<p class="sm muted">${hiddenN} radio${hiddenN===1?"":"s"} hidden by your filters (Tools &amp; settings → Wi-Fi neighbors).</p>`:""}
+    <p class="note">🏠 = your networks. ×2 means more than one radio with that name (like the gateway and an extender). Read-only: nothing is changed.</p>
+  </div></div>`;
+  $("#wf-sub").textContent="what this laptop can hear";
+}
+document.addEventListener("click",async e=>{
+  const t=e.target;
+  if(t.id==="ws-add"){const r=await api("/api/sites",{action:"add",url:$("#ws-url").value,name:$("#ws-name").value});
+    if(r.error){alert(r.error);return}$("#ws-url").value="";$("#ws-name").value="";sitesUI();setTimeout(sitesUI,15000);return}
+  if(t.id==="ws-check"){t.disabled=true;t.textContent="Checking…";await api("/api/sites",{action:"check"});t.disabled=false;t.textContent="⟳ Check now";sitesUI();return}
+  if(t.dataset.wsRm){if(!confirm("Stop checking this website?"))return;await api("/api/sites",{action:"remove",url:t.dataset.wsRm});sitesUI();return}
+  if(t.id==="wf-scan"){t.disabled=true;wifiUI(true);return}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="ws-url"||e.target.id==="ws-name")){e.preventDefault();$("#ws-add").click()}});
+function outagesUI(){
+  if(!OUT)return;const m=OUT.month,a=OUT.all;
+  $("#out-sum").innerHTML=`<div><div class="sm muted">This month</div><div class="big">${m.count}<small> outage${m.count===1?"":"s"}</small></div></div>
+    <div><div class="sm muted">Down this month</div><div class="big">${fmtMin(m.secs)}</div></div>
+    <div><div class="sm muted">Longest (30 d)</div><div class="big">${a.longest?fmtMin(a.longest):"—"}</div></div>
+    <div><div class="sm muted">Blips (30 d)</div><div class="big">${OUT.blips}</div></div>`;
+  $("#out-sub").textContent=OUT.covered_from?`since ${new Date(OUT.covered_from*1000).toLocaleDateString()} · ${OUT.samples} checks`:"no data yet";
+  $("#out-tb").innerHTML=OUT.outages.map(o=>`<tr${o.blip?' class="muted"':""}><td class="mono">${new Date(o.start*1000).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</td>
+    <td>${o.ongoing?chip("crit","ongoing"):fmtMin(o.secs)}${o.blip?' <span class="sm">blip</span>':""}</td><td>${esc(o.cause)}</td></tr>`).join("")
+    ||'<tr><td colspan="3" class="muted">No outages recorded. 🎉</td></tr>';
+}
+function bbdUI(){
+  if(!BBD)return;const c=BBD.clients||[],mx=Math.max(1,...c.map(x=>x.blocked));
+  $("#bbd-tb").innerHTML=c.map(x=>`<tr><td>${esc(x.name)}<div class="sm mono muted">${esc(x.ip||"")}</div></td>
+    <td style="min-width:120px">${x.blocked.toLocaleString()}<div class="bar-in" style="width:${(100*x.blocked/mx).toFixed(0)}%"></div></td>
+    <td>${x.pct!=null?x.pct+"%":"—"}<div class="sm muted">${x.total?x.total.toLocaleString()+" lookups":""}</div></td></tr>`).join("")
+    ||`<tr><td colspan="3" class="muted">${esc(BBD.error||"No blocked lookups yet today.")}</td></tr>`;
+}
+// Devices on your Tailscale network, without Tailscale's own Funnel relay servers (summarized in one line instead)
+function tsDevices(r){
+  const ps=r.phones||[],fr=r.funnel_relays||{};
+  const pretty=n=>n.replace(/[-_]+/g," ").replace(/^./,c=>c.toUpperCase()).replace(/\b(ipad|iphone|macbook|imac)\b/gi,m=>({ipad:"iPad",iphone:"iPhone",macbook:"MacBook",imac:"iMac"})[m.toLowerCase()]).replace(/\bwifi\b/i,"Wi-Fi");
+  const seen=t=>{const ms=t?Date.parse(t):NaN;return ms>0?" · last seen "+ago(ms/1000):""};
+  return `<p class="sm" style="margin-bottom:4px"><b>Your devices on Tailscale</b></p>
+    ${ps.length?`<ul class="toplist">${ps.map(p=>`<li><span>${esc(pretty(p.name))} <span class="muted sm">${esc(p.os||"")}${esc(seen(p.last_seen))}</span></span>
+      <span>${p.online?chip("good","online"):chip("off","offline")}</span></li>`).join("")}</ul>`:'<p class="sm muted">No other devices yet. Install Tailscale on your phone to add it.</p>'}
+    ${fr.count?`<p class="note">Plus ${fr.count} Tailscale Funnel relay servers (shared in by Tailscale while the public web address is on; they carry web visitors to this laptop). They're normal, aren't your devices, and go away if you turn the public address off.</p>`:""}`;
+}
+async function remoteUI(){
+  const r=await api("/api/remote");let h="";
+  const step=(ok,t)=>`<li class="${ok?"done":""}">${ok?"✔":"○"} ${t}</li>`;
+  webUI(r);
+  document.body.classList.toggle("viewonly",r.you_role==="view");
+  rdUI(r);
+  $("#hdr-out").hidden=!r.you_are_remote;  // only people who signed in (web or Tailscale); the laptop never asks
+  if(r.you_are_remote){
+    $("#ra").innerHTML=`<p>You're connected remotely ${r.you_are_web?"from the web":"through Tailscale"}. <button id="ra-out">Sign out ${r.you_are_web?"this browser":"this phone"}</button></p>`;return}
+  h+=`<div class="cols2"><div><b>On this laptop</b><ol class="ra-steps">
+    ${step(r.installed,"Tailscale installed")}
+    ${step(r.state==="Running",r.state==="Running"?"Signed in to Tailscale":`Sign in to Tailscale${r.login_url?`: <a href="${esc(r.login_url)}" target="_blank" rel="noopener">open sign-in link</a>`:""}`)}
+    ${step(r.serving,"Dashboard shared on your private Tailscale network")}
+    ${step(r.pin_set,"Remote PIN set")}</ol>
+    <div class="ra-pin"><label>${r.pin_set?"Change":"Set"} remote PIN (6-12 digits)<input id="ra-pin" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password"></label>
+      <button id="ra-save">Save PIN</button> <span id="ra-msg" class="sm"></span></div>
+    <p class="sm muted">The PIN is asked for on your phone only; this laptop never asks. Changing it signs every phone out.</p></div>
+    <div><b>On your iPhone</b><ol class="ra-steps">
+      <li>Install the free <b>Tailscale</b> app and sign in with the <b>same account</b>.</li>
+      <li>Open Safari and go to:<br>${r.url&&r.serving?`<code class="big-code">${esc(r.url)}</code> <button data-copy="${esc(r.url)}">Copy</button>`:'<span class="muted">(the link appears here once the steps on the left are done)</span>'}</li>
+      <li>Enter your PIN.</li>
+      <li>Tap <b>Share</b> → <b>Add to Home Screen</b>. NCC now opens like an app, full screen, from anywhere.</li></ol>
+      ${tsDevices(r)}
+      <p class="sm muted">Only devices signed in to your Tailscale account can reach it. Nothing is opened on your router.</p></div></div>`;
+  $("#ra").innerHTML=h;
+}
+// ---- Remote desktop card: Ubuntu Remote Login, reachable from the home Wi-Fi and Tailscale devices only.
+// (A public switch through Funnel was removed 2026-10-26: Funnel routes by TLS name, and RDP clients don't send one.)
+function rdUI(r){
+  const d=r.rdp||{},host=(r.url||"").replace(/^https:\/\//,""),short=host.split(".")[0];
+  $("#rd").closest("section").hidden=!d.on;if(!d.on)return;
+  const code=v=>`<code class="big-code">${esc(v)}</code> <button data-copy="${esc(v)}">Copy</button>`;
+  $("#rd").innerHTML=`<div class="cols2"><div>
+    <p>Works from your <b>home Wi-Fi</b>${host?" and from devices with <b>Tailscale</b> on":""}. It isn't reachable from the open internet.</p>
+    <p class="sm muted">Logins: username <b>${esc(d.user||"remote")}</b> + the remote desktop password you chose when installing, then this computer's normal password at its login screen.</p></div>
+    <div><b>How to connect (Windows "Remote Desktop Connection", the Windows App, or Remmina)</b><ol class="sm">
+      <li>Computer / PC name:<br>${host?`with Tailscale on: ${code(short)} <span class="muted">(or ${esc(host)})</span><br>`:""}
+        at home: ${d.lan_ip?code(d.lan_ip):"(this computer's address on your network)"}</li>
+      <li>User account: exactly <b>${esc(d.user||"remote")}</b> (nothing in front of it).</li>
+      <li>Accept the certificate warning the first time.</li></ol></div></div>`;
+}
+// ---- Web access card: family username/password accounts for the public (Tailscale Funnel) address. Laptop or Tailscale + PIN only.
+function webUI(r){
+  if(!r.you_manage){$("#wa").innerHTML=`<p class="sm">Web access accounts and the on/off switch can only be changed on the laptop or one of your Tailscale devices.</p>`;return}
+  const us=r.web_users||[],url=r.url||"";
+  $("#wa").innerHTML=`<div class="cols2"><div>
+    <p>Open <code class="big-code">${esc(url)}</code> ${url?`<button data-copy="${esc(url)}">Copy</button>`:""} in any web browser, on any computer, and sign in with a username and password below. No app needed.</p>
+    <p>Web access: ${r.web_access?chip("good","ON"):chip("off","OFF")} <button id="wa-tog" class="${r.web_access?"danger":""}">${r.web_access?"Turn off":"Turn on"}</button>
+      <br>Public address (Funnel): ${r.funnel?chip("good","ON"):chip("off","OFF")} <button id="wa-fun" class="${r.funnel?"danger":""}">${r.funnel?"Turn off public address":"Turn on public address"}</button></p>
+    <p class="note">Web access off: web visitors only see "turned off". Public address off: the link doesn't work on the internet at all. Your Tailscale devices keep working either way.</p>
+    ${r.web_locked?`<p class="sm">${chip("crit","LOCKED")} 5 wrong sign-ins in the last hour, so web sign-in is locked. <button id="wa-unlock">Unlock now</button></p>`:""}
+    <p class="note">Two-step sign-in: after the password, a 6-digit code is emailed to every address on that account (sent from the Gmail account in Email sending below). Anyone on the internet can reach the sign-in page, so use long passwords you don't use anywhere else. Each sign-in sends a phone alert. After 5 wrong tries, web sign-in locks for an hour. How long a sign-in lasts and what each account can do (Can edit / View only) are set below.</p>
+  </div><div>
+    <b>Accounts</b>
+    ${us.length?`<ul class="toplist">${us.map(u=>`<li><span><b>${esc(u.user)}</b> <span class="muted sm">added ${u.created?new Date(u.created*1000).toLocaleDateString():""}</span>
+      <br><span class="sm">${u.emails.length?"✉ "+u.emails.map(esc).join(", "):chip("crit","no code email: can't sign in")}</span></span>
+      <span><select data-wa-role="${esc(u.user)}" aria-label="What ${esc(u.user)} can do"><option value="edit" ${u.role!=="view"?"selected":""}>Can edit</option><option value="view" ${u.role==="view"?"selected":""}>View only</option></select>
+      <button data-wa-em="${esc(u.user)}" data-cur="${esc(u.emails.join(", "))}">Emails</button> <button data-wa-pw="${esc(u.user)}">Change password</button> <button class="danger" data-wa-rm="${esc(u.user)}">Remove</button></span></li>`).join("")}</ul>`
+      :'<p class="sm muted">No accounts yet. Add one for each person.</p>'}
+    <p class="sm" style="margin-top:12px"><b id="wa-h">Add a person</b><br>
+      <input id="wa-user" placeholder="Username" autocomplete="off" autocapitalize="none" maxlength="32" style="width:min(160px,100%)">
+      <input id="wa-pw" type="password" placeholder="Password (10+ characters)" autocomplete="new-password" maxlength="128" style="width:min(220px,100%)">
+      <input id="wa-pw2" type="password" placeholder="Type it again" autocomplete="new-password" maxlength="128" style="width:min(160px,100%)">
+      <input id="wa-em" type="text" placeholder="Email(s) for sign-in codes, comma between" autocomplete="off" maxlength="600" style="width:min(300px,100%)">
+      <select id="wa-role" aria-label="What they can do"><option value="view">View only</option><option value="edit">Can edit</option></select>
+      <button id="wa-save">Save</button> <span id="wa-msg" class="sm"></span></p>
+  </div></div>
+  <div class="cols2" style="margin-top:14px"><div>
+    <b>Signed in right now</b> ${(r.sessions||[]).length>1?`<button class="danger" id="wa-outall">Sign out everyone</button>`:""}
+    ${(r.sessions||[]).length?`<ul class="toplist">${r.sessions.map(s=>`<li><span><b>${esc(s.user||"Tailscale device")}</b> ${chip(s.kind==="web"?"warn":"good",s.kind==="web"?"web":"Tailscale")}
+      ${s.role==="view"?chip("off","view only"):""}<span class="muted sm"><br>${esc(s.ip||"?")}${s.browser?" · "+esc(s.browser.slice(0,40)):""}<br>signed in ${s.created?ago(s.created):"earlier"} · ${s.last_seen?"active "+ago(s.last_seen):"not used since restart"} · ends ${new Date(s.expires*1000).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</span></span>
+      <span><button class="danger" data-sess="${esc(s.id)}">Sign out</button>${s.blockable?` <button class="danger" data-block="${esc(s.id)}" data-ip="${esc(s.ip||"")}">Block device</button>`:""}</span></li>`).join("")}</ul>`
+      :'<p class="sm muted">Nobody is signed in from another device.</p>'}
+    ${(r.blocked||[]).length?`<p style="margin:12px 0 4px"><b>Blocked devices</b> <span class="sm muted">can't sign in again until unblocked</span></p><ul class="toplist">${r.blocked.map((b,i)=>`<li><span>${esc(b.label||"device")}<br><span class="muted sm">${b.dev?"this browser":""}${b.dev&&b.ip?" + ":""}${b.ip?"IP "+esc(b.ip):""} · blocked ${b.at?ago(b.at):""}</span></span><span><button data-unblock="${i}">Unblock</button></span></li>`).join("")}</ul>`:""}
+    <p class="note">Don't recognize one? <b>Block device</b> signs it out and stops that browser (and its IP address, if you choose) from ever signing in again. Also change that account's password or remove it.</p>
+  </div><div>
+    <b>How long a sign-in lasts</b>
+    <p class="sm">From the web: <select id="wa-wlen">${r.session_hours.map(h=>sessOpt(h,r.web_session_h)).join("")}</select></p>
+    <p class="sm">Tailscale (PIN): <select id="wa-plen">${r.session_hours.map(h=>sessOpt(h,r.pin_session_h)).join("")}</select></p>
+    <p class="note">After that, they have to sign in again. A shorter time also applies to people already signed in.</p>
+  </div></div>`;
+}
+const sessOpt=(h,cur)=>`<option value="${h}" ${h===cur?"selected":""}>${h<24?h+(h===1?" hour":" hours"):h/24+(h===24?" day":" days")}</option>`;
+document.addEventListener("change",async e=>{const u=e.target.dataset&&e.target.dataset.waRole;if(!u)return;
+  const r=await api("/api/web/user",{user:u,role:e.target.value});if(r.error)alert(r.error);remoteUI()});
+document.addEventListener("change",async e=>{if(e.target.id!=="wa-wlen"&&e.target.id!=="wa-plen")return;
+  const k=e.target.id==="wa-wlen"?"web_session_h":"pin_session_h";const r=await api("/api/settings",{[k]:+e.target.value});
+  if(r.error)alert(r.error);remoteUI()});
+document.addEventListener("click",async e=>{
+  const t=e.target,m=()=>$("#wa-msg");
+  if(t.dataset.waPw){$("#wa-user").value=t.dataset.waPw;const cur=document.querySelector(`[data-wa-role="${CSS.escape(t.dataset.waPw)}"]`);if(cur)$("#wa-role").value=cur.value;$("#wa-h").textContent="Change password for "+t.dataset.waPw;$("#wa-pw").focus();return}
+  if(t.dataset.waEm){const v=prompt(`Emails for ${t.dataset.waEm}'s sign-in codes (up to 5, separated by commas). A code goes to all of them:`,t.dataset.cur);
+    if(v===null)return;const r=await api("/api/web/user",{user:t.dataset.waEm,emails:v});if(r.error){alert(r.error);return}remoteUI();return}
+  if(t.dataset.waRm){if(!confirm(`Remove ${t.dataset.waRm}? They're signed out right away.`))return;
+    const r=await api("/api/web/user/remove",{user:t.dataset.waRm});if(r.error){alert(r.error);return}remoteUI();return}
+  if(t.id==="wa-save"){if($("#wa-pw").value!==$("#wa-pw2").value){m().textContent="✖ The two passwords don't match.";return}
+    m().textContent="Saving…";const body={user:$("#wa-user").value,password:$("#wa-pw").value,role:$("#wa-role").value};if($("#wa-em").value.trim())body.emails=$("#wa-em").value;
+    const r=await api("/api/web/user",body);
+    if(r.error){m().textContent="✖ "+r.error;return}remoteUI();return}
+  if(t.id==="wa-tog"){const on=t.textContent==="Turn on";
+    if(on&&!confirm("Turn on web access?\n\nAnyone can then reach the sign-in page from the internet. Only the accounts listed here can get in."))return;
+    const r=await api("/api/settings",{web_access:on});if(r.error){alert(r.error);return}remoteUI();return}
+  if(t.id==="wa-fun"){const on=t.textContent.startsWith("Turn on");
+    if(!confirm(on?"Put the dashboard's address on the public internet?\n\nOnly people with an account (and web access on) can sign in.":"Take the dashboard off the public internet?\n\nIt keeps working on your Tailscale devices."))return;
+    t.disabled=true;t.textContent="Working…";const r=await api("/api/web/funnel",{on});if(r.error)alert(r.error);remoteUI();return}
+  if(t.dataset.block){
+    if(!confirm("Block this device?\n\nIt's signed out now and can't sign in again (web or Tailscale) until you unblock it."))return;
+    const ip=t.dataset.ip&&confirm(`Also block its IP address (${t.dataset.ip})?\n\nOK = yes, stronger: works even if they clear their browser.\nCancel = only this browser.\n\nCareful: everyone sharing that internet connection (same house, school or phone network) is blocked too.`);
+    const r=await api("/api/sessions/block",{id:t.dataset.block,by_ip:!!ip});if(r.error)alert(r.error);remoteUI();return}
+  if(t.dataset.unblock!==undefined){if(!confirm("Unblock this device? It can sign in again (still needs a password and code)."))return;
+    const r=await api("/api/blocked/remove",{n:+t.dataset.unblock});if(r.error)alert(r.error);remoteUI();return}
+  if(t.dataset.sess||t.id==="wa-outall"){const all=t.id==="wa-outall";
+    if(!confirm(all?"Sign out everyone on other devices? (This laptop stays signed in.)":"Sign out this session now?"))return;
+    await api("/api/sessions/drop",{id:all?"*":t.dataset.sess});remoteUI();return}
+  if(t.id==="wa-unlock"){await api("/api/web/unlock",{});remoteUI();return}
+});
+document.addEventListener("click",async e=>{
+  if(e.target.id==="ra-save"){const r=await api("/api/remote/pin",{pin:$("#ra-pin").value});$("#ra-msg").textContent=r.error?"✖ "+r.error:"✔ PIN saved";if(!r.error)setTimeout(remoteUI,800)}
+  if(e.target.id==="hdr-out"){e.target.disabled=true;e.target.textContent="Logging out…";await api("/api/remote/logout",{}).catch(()=>{});location.replace("/");return}
+  if(e.target.id==="ra-out"){await api("/api/remote/logout",{});location.reload()}
+});
+// plain-language meaning + fix for every finding, badge and alert the dashboard can show
+const WHY=[
+ {grp:"Status badge (top of the page)",items:[
+  {m:/^All systems nominal$/,lvl:"good",t:"All systems nominal",what:"Everything the dashboard checks is working.",fix:["Nothing to do."]},
+  {m:/^Attention$/,lvl:"warn",t:"Attention",what:"At least one yellow ▲ item needs a look. It isn't an emergency: the internet is still working.",fix:["See the yellow items above for what it is and what to do."]},
+  {m:/^Critical$/,lvl:"crit",t:"Critical",what:"At least one red ✖ item: something is broken right now, usually the internet or the connection to the router.",fix:["See the red items above."]},
+  {m:/^Initializing$/,lvl:"info",t:"Initializing",what:"The page just opened and is loading its first measurements.",fix:["Wait a few seconds. If it stays, press Ctrl+R."]},
+  {m:/^Dashboard backend unreachable$/,lvl:"crit",t:"Dashboard backend unreachable",what:"This page can't talk to the dashboard program on the laptop. Your internet is not affected.",fix:["Wait 30 seconds and press Ctrl+R.","Still stuck: open a terminal and run ~/network-command-center/ncc restart","Using it from your phone: the laptop may be off, or Tailscale is off on the phone."]},
+  {m:/^(Live|Reconnecting|Stalled|Paused)$/,lvl:"info",t:"Live / Reconnecting / Stalled / Paused",what:"The live data stream. Paused means the window is hidden or minimized. Stalled means no new data for 10 seconds. Reconnecting means it's trying again.",fix:["Nothing to do unless it stays Stalled. Then press Ctrl+R."]}]},
+ {grp:"Problems the dashboard finds",items:[
+  {m:/^Gateway unreachable/,lvl:"crit",t:"Gateway unreachable",what:"This computer can't reach the router. Usually the laptop's own Wi-Fi dropped, so other devices may be fine.",fix:["Check the Wi-Fi icon on the laptop. Turn Wi-Fi off and on.","If every device is offline, look at the gateway's lights. If it's off or all red, restart it (see Restart controls)."]},
+  {m:/^Internet down, router OK/,lvl:"crit",t:"Internet down, router OK",what:"Your home network is fine, but the internet past the gateway isn't answering. The problem is usually on your internet provider's side.",fix:["Look at the router's internet/broadband light: red or off usually means the provider.","Check your provider's outage page or app.","If it lasts more than 10 minutes, restart the router.","You'll get a phone alert when it comes back."]},
+  {m:/^Packet loss/,lvl:"warn",t:"Packet loss",what:"Some test pings to the internet got lost. Once in a while is normal. If it keeps happening, video calls and games can stutter.",fix:["Watch the Internet tab. If it keeps happening for an hour, restart the router.","If it's constant for days, report it to your internet provider."]},
+  {m:/^Slow Wi-Fi to router/,lvl:"warn",t:"Slow Wi-Fi to router",what:"The laptop's Wi-Fi connection to the gateway is slow (over 30 ms; normal is under 10). Usually distance, walls, or a very busy network.",fix:["A big download can cause this for a minute; it clears by itself.","If it stays, move the laptop closer to the gateway, or plug it in with an Ethernet cable."]},
+  {m:/^DNS failing/,lvl:"warn",t:"DNS failing",what:"The internet works, but looking up website names fails, so sites may not load. It often happens for a minute while Pi-hole restarts.",fix:["Wait a minute; it usually clears.","If not, press Restart Pi-hole (Restart controls below).","Devices automatically use the gateway as backup DNS, so most keep working."]},
+  {m:/^Pi-hole down/,lvl:"warn",t:"Pi-hole down",what:"Pi-hole isn't answering. Devices switch to the gateway's backup DNS, so the internet keeps working, but ads aren't blocked and new devices can't join the Wi-Fi.",fix:["Press Restart Pi-hole (Restart controls below).","Still down after a minute: reboot the laptop."]},
+  {m:/^Pi-hole (paused|disabled|false)/,lvl:"warn",t:"Pi-hole paused / disabled",what:"Ad blocking is turned off, maybe on a timer. Pi-hole still answers lookups.",fix:["Wait for the timer to end, or turn blocking back on in the Pi-hole tab or Pi-hole's admin page."]},
+  {m:/^Pi-hole not connected/,lvl:"info",t:"Pi-hole not connected",what:"The dashboard isn't linked to Pi-hole, so it can't show Pi-hole stats.",fix:["Check PIHOLE_URL in config/ncc.env and the password in ~/.config/ncc/secrets.env, then restart the dashboard."]},
+  {m:/^Low memory/,lvl:"warn",t:"Low memory",what:"The laptop is low on RAM (it only has 4 GB), so things get slow. The message lists the programs using the most.",fix:["Close browser tabs or apps you aren't using. That's the quickest fix.","The dashboard itself uses about 50 MB."]},
+  {m:/^CPU busy/,lvl:"warn",t:"CPU busy",what:"The laptop is working hard, usually because of updates or a busy browser.",fix:["Wait a few minutes.","If it stays, close heavy apps."]},
+  {m:/^Running hot/,lvl:"warn",t:"Running hot",what:"The processor is at 185 °F or more.",fix:["Make sure the vents aren't blocked: not on a bed, blanket or couch.","Give it space around the sides. If it keeps happening, the fan may need cleaning."]},
+  {m:/active devices ignore ping/,lvl:"info",t:"Devices ignore ping",what:"These devices are connected but didn't answer the dashboard's ping. Phones, watches and TVs do this to save battery. It is normal.",fix:["Nothing to do. Only worry if a device also doesn't work."]},
+  {m:/^Collecting/,lvl:"info",t:"Collecting",what:"The dashboard just started and is taking its first measurements.",fix:["Wait about a minute."]},
+  {m:/^(Internet up|Pi-hole enabled)/,lvl:"good",t:"Internet up / Pi-hole enabled",what:"Working normally.",fix:["Nothing to do."]}]},
+ {grp:"Alerts (Security tab events and phone notifications)",items:[
+  {m:/^web-signin$/,lvl:"warn",t:"Web sign-in",what:"Someone signed in to the dashboard from a web browser (not through Tailscale), with the username shown.",fix:["If it was you or your family, nothing to do.","If not: in Security → Web access, remove that account or press Turn off (Security tab → Web access)."]},
+  {m:/^web-signin-fail$/,lvl:"warn",t:"Wrong web sign-in",what:"Someone typed a wrong username or password on the web sign-in page. After 5 in an hour, web sign-in locks for an hour.",fix:["If it was a family member mistyping, ignore it (Unlock now is in Security → Web access).","If it keeps happening, someone may be guessing: turn web access off."]},
+  {m:/^remote-desktop$/,lvl:"info",t:"Remote desktop from the internet",what:"An older note: remote desktop was switched on or off for the open internet. That switch has been removed; remote desktop now only works from your home Wi-Fi and Tailscale devices.",fix:["Nothing to do."]},
+  {m:/^web-access$/,lvl:"info",t:"Web access change",what:"Web access was changed: an account added, removed or changed, someone signed out, the lock cleared, or the public address switched (on the laptop or a Tailscale device).",fix:["Nothing to do if it was you."]},
+  {m:/^new-device$/,lvl:"warn",t:"New device joined",what:"A device the dashboard hasn't seen before connected. Often it's a phone that changed its private address, or a guest.",fix:["Find it in the Devices tab. If it's yours, give it a name.","If you don't know it, you can block it there. Don't assume it's bad: phones make new private addresses."]},
+  {m:/^internet-outage$/,lvl:"crit",t:"Internet outage",what:"The internet stopped answering for two checks in a row.",fix:["Same as \"Internet down, router OK\" or \"Gateway unreachable\" above, depending on the cause it lists."]},
+  {m:/^internet-recovered$/,lvl:"good",t:"Internet restored",what:"The internet is back, with how long it was out. The Outage report on the Internet tab keeps the history.",fix:["Nothing to do."]},
+  {m:/^gateway$/,lvl:"crit",t:"Router not responding",what:"The gateway stopped answering pings.",fix:["Same as \"Gateway unreachable\" above."]},
+  {m:/^dns$/,lvl:"warn",t:"DNS lookups are failing",what:"Same as \"DNS failing\" above.",fix:["Usually clears in a minute."]},
+  {m:/^pihole-(off|on)$/,lvl:"warn",t:"Pi-hole turned off / back on",what:"Pi-hole stopped, or started again. While it's off, devices use the gateway backup DNS: internet works, ads aren't blocked.",fix:["If it doesn't come back in a minute or two, press Restart Pi-hole."]},
+  {m:/^laptop-(off|on)$/,lvl:"info",t:"Laptop shutting down / on again",what:"The laptop was shut down or restarted, or it just finished starting. The Wi-Fi keeps working while it's off.",fix:["If you didn't do it, check that the laptop is plugged in."]},
+  {m:/^new-listener$/,lvl:"warn",t:"New listening port",what:"A program on this laptop started accepting connections from the network. Often a normal app (like a media server), but worth knowing.",fix:["Look at which port it names. If you didn't just install or start something, ask me to check it."]},
+  {m:/^auth-failures$/,lvl:"warn",t:"Failed login attempts",what:"Someone or something typed a wrong password on this laptop (login screen, sudo, or the admin prompt).",fix:["If it was you, ignore it.","If not, change your laptop password."]},
+  {m:/^(memory|disk|temperature)$/,lvl:"warn",t:"Memory / disk / temperature",what:"Same as \"Low memory\" or \"Running hot\" above. Disk means the drive is over 90% full.",fix:["For disk: delete big files you don't need (Downloads is a good place to start)."]}]}];
+function whyFor(title){for(const g of WHY)for(const it of g.items)if(it.m.test(title))return it;return null}
+function whyCard(it,title,det){
+  return `<div class="why-item ${it?it.lvl:"info"}"><span class="ic">${ICON[it?it.lvl:"info"]||"•"}</span><div><b>${esc(title||it.t)}</b>${det?`<div class="det">${esc(det)}</div>`:""}
+    ${it?`<p>${esc(it.what)}</p><ul>${it.fix.map(f=>`<li>${esc(f)}</li>`).join("")}</ul>`:""}</div></div>`}
+function whyUI(){
+  if(!S||!$("#why-now"))return;
+  const order={crit:0,warn:1,info:2,good:3};
+  const fs=[...S.findings].sort((a,b)=>order[a.level]-order[b.level]);
+  const probs=fs.filter(f=>f.level==="crit"||f.level==="warn");
+  const bad=probs.some(f=>f.level==="crit"),badge=bad?"Critical":probs.length?"Attention":"All systems nominal";
+  const bi=whyFor(badge);
+  $("#why-now").innerHTML=`<div class="why-head">Right now the badge says ${chip(bad?"crit":probs.length?"warn":"good",badge)}<span>${esc(bi.what)}</span></div>`+
+    (probs.length?probs.map(f=>whyCard(whyFor(f.title),f.title,f.detail)).join(""):'<p class="note">Nothing needs attention. Notes, for your information:</p>')+
+    fs.filter(f=>f.level==="info").map(f=>whyCard(whyFor(f.title),f.title,f.detail)).join("");
+  if(!$("#why-ref").innerHTML)$("#why-ref").innerHTML=WHY.map(g=>`<h3>${esc(g.grp)}</h3>`+g.items.map(it=>whyCard(it)).join("")).join("");
+}
+document.addEventListener("click",e=>{if(e.target.closest("#overall")){location.hash="#/troubleshoot";setTimeout(()=>$("#why-panel").scrollIntoView({behavior:"smooth"}),80)}});
+
+async function alertsUI(){
+  const a=await api("/api/alerts");
+  const what=`<p>You'll get a notification when:</p><ul class="sm"><li>an unknown device joins your network</li>
+    <li>the internet goes down (sent when it comes back, with how long it was out)</li><li>Pi-hole turns off, and when it's back on</li>
+    <li>this laptop shuts down or restarts, and when it's on again</li><li>DNS, memory, disk or temperature has a problem</li></ul>`;
+  $("#al").innerHTML=a.configured?`<div class="cols2"><div>
+    <p><b>1.</b> Install the free <b>ntfy</b> app (App Store / Google Play).<br><b>2.</b> Tap <b>+</b> and subscribe to this topic:</p>
+    <p><code class="big-code">${esc(a.topic)}</code> <button data-copy="${esc(a.topic)}">Copy</button></p>
+    <p class="sm muted">Server: ${esc(a.server)} (the app's default). Keep the topic private: anyone who knows it can read your alerts.</p>
+    <p class="sm"><button id="al-new" class="danger">Make a new topic</button> <span class="muted">if someone else learned it. Your phone has to subscribe again.</span></p></div>
+    <div>${what}<button id="al-test">🔔 Send test alert</button> <span id="al-msg" class="sm"></span>
+    <h3 class="al-h">✉ Also send alerts by email</h3>
+    <p class="sm muted">For a watch or phone without the ntfy app (like an Apple Watch on Family Setup): it gets them in Mail. They're sent from the Gmail account in <b>Email sending</b> below${a.gmail?` (<b>${esc(a.gmail)}</b>)`:""}; check Junk the first time.</p>
+    ${a.gmail?"":`<p class="sm" style="color:var(--warn)">✖ Email sending isn't set up yet, so no emails go out. Set it up in the Email sending box below.</p>`}
+    ${(a.emails||[]).length?`<ul class="sm" id="al-emails">${a.emails.map((m,n)=>`<li>${esc(m)} <button data-al-rm="${n}" class="danger">Remove</button></li>`).join("")}</ul>`:`<p class="sm muted">No alert emails yet.</p>`}
+    ${(a.emails||[]).length<5?`<p class="sm"><input id="al-email" type="email" placeholder="name@icloud.com" autocomplete="off" style="width:min(260px,100%)"> <button id="al-email-save">${(a.emails||[]).length?"Add another":"Add"}</button></p>`:`<p class="sm muted">That's the most (5).</p>`}
+    <span id="al-emsg" class="sm"></span></div></div>`
+    :`<div class="cols2"><div><p><b>Phone alerts aren't set up.</b></p>
+    <p class="sm">Press the button to make a private topic. Then install the free <b>ntfy</b> app on your phone and subscribe to the topic shown here.</p>
+    <p><button id="al-new">🔔 Set up phone alerts</button> <span id="al-msg" class="sm"></span></p></div><div>${what}</div></div>`;
+  gmailUI(a);
+}
+// ---- Email sending: the dashboard's own Gmail login (address + Google app password). Laptop only; the password never comes back.
+function gmailUI(a){
+  if(a.remote){$("#gm").innerHTML=`<p class="sm">Email sending: ${a.gmail?chip("good","SET UP"):chip("off","NOT SET UP")}. It can only be changed on the laptop itself.</p>`;return}
+  $("#gm").innerHTML=`<div class="cols2"><div>
+    <p>Sign-in codes and alert emails are sent from a Gmail account. ${a.gmail?`Sending from <b>${esc(a.gmail)}</b> ${chip("good","SET UP")}`:chip("off","NOT SET UP")}</p>
+    ${a.gmail?`<p class="sm"><button id="gm-test">✉ Send test email</button> <button id="gm-chg">Change</button> <button id="gm-rm" class="danger">Remove</button></p>`:""}
+    <div id="gm-form" ${a.gmail?"hidden":""}>
+      <p class="sm"><label>Gmail address<br><input id="gm-user" type="email" autocomplete="off" placeholder="name@gmail.com" style="width:min(280px,100%)"></label></p>
+      <p class="sm"><label>App password (16 letters)<br><input id="gm-pw" type="password" autocomplete="new-password" placeholder="xxxx xxxx xxxx xxxx" style="width:min(280px,100%)"></label></p>
+      <p class="sm"><button id="gm-save">Check & save</button>${a.gmail?` <button id="gm-cancel">Cancel</button>`:""}</p></div>
+    <span id="gm-msg" class="sm"></span></div>
+    <div><p><b>How to get an app password</b></p><ol class="sm">
+      <li>Sign in to the Gmail account at <b>myaccount.google.com</b>.</li>
+      <li>Go to <b>Security</b> and make sure <b>2-Step Verification</b> is on (app passwords only exist with it on).</li>
+      <li>Search for <b>App passwords</b> at the top, make one called <b>NCC</b>, and copy the 16 letters.</li>
+      <li>Paste them here. The dashboard checks them with Gmail before saving.</li></ol>
+      <p class="sm muted">Saved only on this laptop (private file). It's never shown again, not even here, and never goes in backups or logs. To cut the dashboard off, delete the app password in your Google account.</p></div></div>`;
+}
+document.addEventListener("click",async e=>{
+  const id=e.target.id;if(!id.startsWith("gm-"))return;const m=$("#gm-msg");
+  if(id==="gm-chg"||id==="gm-cancel"){$("#gm-form").hidden=id==="gm-cancel";m.textContent="";return}
+  if(id==="gm-rm"){if(!confirm("Stop sending email?\n\nSign-in codes and alert emails won't go out until Gmail is set up again."))return;
+    await api("/api/gmail/remove",{});alertsUI();return}
+  if(id==="gm-test"){m.textContent="Sending…";const r=await api("/api/gmail/test",{});m.textContent=r.error?"✖ "+r.error:r.ok?`✔ Sent to ${r.to.join(" and ")}. Check that inbox (and Junk).`:"✖ Gmail didn't send it.";return}
+  if(id==="gm-save"){m.textContent="Checking with Gmail…";e.target.disabled=true;
+    const r=await api("/api/gmail",{user:$("#gm-user").value,password:$("#gm-pw").value});e.target.disabled=false;
+    if(r.error){m.textContent="✖ "+r.error;return}await alertsUI();$("#gm-msg").textContent="✔ Saved. Press Send test email to try it."}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="al-email"){e.preventDefault();$("#al-email-save").click()}});
+document.addEventListener("click",async e=>{
+  const c=e.target.closest("button[data-copy]");if(c){try{await navigator.clipboard.writeText(c.dataset.copy);c.textContent="Copied ✓"}catch{c.textContent="Select & copy"}return}
+  if(e.target.id==="al-new"){const had=!!e.target.closest("#al").querySelector("[data-copy]");
+    if(had&&!confirm("Make a new topic?\n\nThe old one stops getting alerts, and you'll need to subscribe to the new one in the ntfy app."))return;
+    const r=await api("/api/alerts/setup",{});if(r.error){alert(r.error);return}await alertsUI();return}
+  if(e.target.id==="al-test"){$("#al-msg").textContent="Sending…";const r=await api("/api/alerts/test",{});
+    $("#al-msg").textContent=r.error?"✖ "+r.error:!r.ok?"✖ Couldn't reach ntfy. Is the internet up?"
+      :r.email===false?"✔ Sent to the app, ✖ but an email didn't go (is Email sending set up?).":r.email?"✔ Sent. Check your phone and email (every address).":"✔ Sent. Check your phone."}
+  if(e.target.id==="al-email-save"||e.target.dataset.alRm){const rm=e.target.dataset.alRm;
+    if(rm&&!confirm("Stop emailing alerts to this address?"))return;
+    const r=await api("/api/alerts/email",rm?{remove:+rm}:{add:$("#al-email").value});
+    if(r.error){$("#al-emsg").textContent="✖ "+r.error;return}await alertsUI();
+    if(!rm)$("#al-msg").textContent="Added. Press Send test alert to try it."}
+});
+function charts(){
+  speedUI();
+  lineChart($("#ch-wan"),HIST,"wan_ms",{fmt:v=>v.toFixed(0)+" ms"});
+  lineChart($("#ch-gw"),HIST,"gw_ms",{fmt:v=>v.toFixed(0)+" ms",color:"var(--blue)"});
+  lineChart($("#ch-rx"),HIST,"rx_bps",{fmt:fmtbps,color:"var(--teal)"});
+  lineChart($("#ch-tx"),HIST,"tx_bps",{fmt:fmtbps,color:"var(--teal)"});
+  strip();
+}
+
+function topo(){
+  const svg=$("#topo"),W=svg.clientWidth||800;let maxY=262;
+  const act=DEV.filter(d=>d.active&&d.kind!=="gateway");
+  const groups={};for(const d of act){const k=d.conn||"Unknown link";(groups[k]=groups[k]||[]).push(d)}
+  const keys=Object.keys(groups).sort();
+  const gx=W/2,gy=120;let s="";
+  const bb=S.gateway.broadband||{},l=S.last;
+  const node=(x,y,r,col,label,sub,strong)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="var(--panel2)" stroke="${col}" stroke-width="2"/><text x="${x}" y="${y+r+13}" text-anchor="middle" class="${strong?"lbl-strong":""}">${esc(label)}</text>${sub?`<text x="${x}" y="${y+r+25}" text-anchor="middle">${esc(sub)}</text>`:""}`;
+  // internet -> gateway
+  const netCol=l.internet?"var(--cyan)":"var(--crit)",gwCol=l.gw.ok?"var(--cyan)":"var(--crit)";
+  s+=`<line x1="${gx}" y1="28" x2="${gx}" y2="${gy}" stroke="${netCol}" stroke-width="2" ${l.internet?"":'stroke-dasharray="5 4"'}/>`;
+  s+=node(gx,26,10,netCol,"",null);s+=`<text x="${gx+18}" y="30" class="lbl-strong">INTERNET</text><text x="${gx+18}" y="43">${esc(bb.type||"")} ${l.wan.ms!=null?l.wan.ms.toFixed(0)+" ms":""}</text>`;
+  const n=keys.length,band=n?Math.min(260,(W-40)/n):0,sx=gx-band*(n-1)/2;
+  keys.forEach((k,i)=>{
+    const hx=sx+band*i,hy=210,col=k.startsWith("Ethernet")?"var(--teal)":"var(--blue)";
+    s+=`<line x1="${gx}" y1="${gy}" x2="${hx}" y2="${hy}" stroke="${col}" stroke-opacity=".6" stroke-width="2"/>`;
+    s+=`<rect x="${hx-48}" y="${hy-11}" width="96" height="22" rx="3" fill="var(--panel2)" stroke="${col}"/><text x="${hx}" y="${hy+4}" text-anchor="middle" class="lbl-strong">${esc(k.replace("Ethernet ","ETH "))}</text>`;
+    const ds=groups[k],per=Math.max(1,Math.floor((band-8)/22)),rows=Math.ceil(ds.length/per);
+    ds.forEach((d,j)=>{const r=Math.floor(j/per),c=j%per,cnt=Math.min(per,ds.length-r*per);
+      const x=hx-(cnt-1)*11+c*22,y=262+r*30;
+      const st=d.kind==="this computer"?"var(--cyan)":d.ping_ok===0?"var(--warn)":"var(--good)";
+      s+=`<line x1="${hx}" y1="${hy+11}" x2="${x}" y2="${y}" stroke="${col}" stroke-opacity=".18"/>`;
+      s+=`<circle cx="${x}" cy="${y}" r="${d.kind==="this computer"?8:6}" fill="var(--panel2)" stroke="${st}" stroke-width="2" data-i="${DEV.indexOf(d)}" style="cursor:pointer"><title>${esc(dname(d)||d.mac)}\n${esc(d.ip||"")} · ${esc(d.vendor)}\n${d.ping_ok===0?"no ping reply":"replies to ping"}</title></circle>`;
+    });
+    s+=`<text x="${hx}" y="${262+rows*30+6}" text-anchor="middle">${ds.length} device${ds.length>1?"s":""}</text>`;maxY=Math.max(maxY,262+rows*30+6);
+  });
+  s+=`<rect x="${gx-62}" y="${gy-18}" width="124" height="36" rx="4" fill="var(--panel2)" stroke="${gwCol}" stroke-width="2"/><text x="${gx}" y="${gy-2}" text-anchor="middle" class="lbl-strong">${esc((S.gateway.info||{})["Model Number"]||"GATEWAY")}</text><text x="${gx}" y="${gy+11}" text-anchor="middle">${esc(l.gateway_ip)}</text>`;
+  const ph=S.pihole,H=maxY+(W<600?80:40);svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.style.height=H+"px";
+  s+=`<g transform="translate(${W-150},${W<600?H-62:18})"><rect width="136" height="40" rx="4" fill="var(--panel2)" stroke="${!ph.configured?"var(--muted)":ph.ok?"var(--good)":"var(--crit)"}" stroke-dasharray="${ph.configured?"":"4 3"}"/><text x="68" y="17" text-anchor="middle" class="lbl-strong">PI-HOLE</text><text x="68" y="31" text-anchor="middle">${ph.configured?esc(ph.host)+" · "+(ph.ok?"up":"down"):"not linked"}</text></g>`;
+  s+=`<g transform="translate(12,${H-14})"><circle r="5" cx="5" cy="-4" fill="none" stroke="var(--good)" stroke-width="2"/><text x="14" y="0">replies</text><circle r="5" cx="80" cy="-4" fill="none" stroke="var(--warn)" stroke-width="2"/><text x="89" y="0">no ping reply</text><circle r="5" cx="190" cy="-4" fill="none" stroke="var(--cyan)" stroke-width="2"/><text x="199" y="0">this PC</text></g>`;
+  svg.innerHTML=s;
+  $("#topo-sub").textContent=`${act.length} active · ${keys.length} link groups`;
+}
+
+const PRIV_TIP="Private (randomized) Wi-Fi address. If the device is set to Rotating, this address changes over time and the device shows up again as a new entry.";
+function devices(){
+  BYIP={};for(const d of DEV)if(d.ip&&d.label)BYIP[d.ip]=d.label;
+  const act=DEV.filter(d=>d.active);
+  $("#bd-devices").textContent=act.length||"";
+  $("#t-dev").innerHTML=`${chip("good",act.length+" online")}<div class="big">${act.length}<small>/ ${DEV.length} known</small></div><div class="meta">${act.filter(d=>isPriv(d.mac)).length} online use private addresses · ${DEV.filter(d=>d.label).length} named</div>`;
+  const bl=Object.keys(BLK);
+  $("#dev-blk").innerHTML=bl.length?`<b>⊘ Blocked through Pi-hole (${bl.length}):</b> `+bl.map(m=>{const x=DEV.find(y=>y.mac===m)||{mac:m};
+    return`<span class="blk-item">${esc(dname(x)||m)} <span class="mono sm">${esc(m)}</span> <span class="sm muted">${BLK[m].strong?"lookups + no address":"lookups only"}</span> <button data-unblock="${esc(m)}">Unblock</button></span>`}).join(""):"";
+  $("#dev-blk").hidden=!bl.length;
+  if(EDIT)return; // don't redraw under someone typing a name
+  const q=$("#dev-q").value.toLowerCase(),f=$("#dev-f").value,now=Date.now()/1000;
+  const rows=DEV.filter(d=>(f==="all"||(f==="active"?d.active:d.last_seen&&now-d.last_seen<604800))&&
+    (!q||[d.label,d.name,d.ip,d.mac,d.vendor,d.kind].join(" ").toLowerCase().includes(q)));
+  $("#dev-tb").innerHTML=rows.map(d=>{
+    const st=(BLK[d.mac]?`<span title="${BLK[d.mac].strong?"Lookups blocked + no address":"Lookups blocked"}">${chip("crit","Blocked")}</span> `:"")+(!d.active?chip("off","Offline"):d.ping_ok===0?chip("warn","No ping"):chip("good","Online"));
+    const isNew=!d.baseline&&now-d.first_seen<86400;
+    const nm=`<span class="dn ${d.label?"lab":""}">${esc(dname(d)||"—")}</span><button class="ed" data-ed="${esc(d.mac)}" title="Rename" aria-label="Rename ${esc(dname(d)||d.mac)}">✎</button>`+
+      (d.label&&d.name&&d.label!==d.name?`<div class="sm">${esc(d.name)}</div>`:"")+
+      (d.label_hint?`<div class="hint">Same device as “${esc(d.label_hint.label)}”, with a new private address?<button data-adopt="${esc(d.mac)}">Yes, name it</button></div>`:"");
+    return`<tr><td>${st}${isNew?' <span class="chip warn">new</span>':""}</td><td data-cell="${esc(d.mac)}">${nm}</td><td class="mono">${esc(d.ip||"—")}</td><td class="mono">${esc(d.mac)}</td><td>${vendorCell(d)}</td><td class="mono">${esc(d.conn||"—")}</td>${typeCell(d)}<td class="mono">${d.last_seen?ago(d.last_seen):esc(d.gw_last||"—")}</td></tr>`}).join("")||`<tr><td colspan="8" class="muted">No matching devices.</td></tr>`;
+  const m=S.device_meta||{};
+  $("#dev-sub").textContent=`${DEV.filter(d=>d.active).length} active / ${DEV.length} known · source: ${m.source||"?"} · scanned ${ago(m.ts)} · ${m.ping_replied??0}/${m.pinged??0} answered ping`;
+}
+
+// ---- device editor (name, type, Fixed-address reminder) shared by the inventory and the MAC lookup
+const typeCell=d=>d.kind_user?`<td>${esc(d.kind)}</td>`:`<td class="muted" title="Automatic guess. Set a type with ✎.">${esc(d.kind||"")}${d.kind?" ?":""}</td>`;
+function blockBtn(d){
+  if(!CAN_BLOCK)return`<button class="danger" data-blockinfo>⊘ Block from Wi-Fi…</button>`;
+  if(d.kind==="this computer"||d.kind==="gateway")return"";
+  const m=esc(d.mac),b=BLK[d.mac];
+  if(b)return(b.strong?"":`<button class="danger" data-strong="${m}" title="Also refuse it an address (short pause for everyone)">⊘ Also kick off network</button>`)+`<button data-unblock="${m}">✓ Unblock</button>`;
+  return`<button class="danger" data-block="${m}" title="Instant, no pause">⊘ Block internet</button><button class="danger" data-strong="${m}" title="Stronger; short pause for everyone">⊘ Block + kick off network</button>`;
+}
+function editorHTML(d){
+  const wifi=(S&&S.gateway&&S.gateway.info&&"your home Wi-Fi")||"your home Wi-Fi";
+  const priv=isPriv(d.mac);
+  const remind=`<div class="remind"><b>⚠ Reminder: set this device's Wi-Fi address to “Fixed” so its name sticks.</b>
+      ${priv?"It's using a private (made-up) address. If that's set to Rotating, the address changes and the device shows up later as a new, unnamed device."
+        :`Right now it shows its real hardware address (${esc(d.vendor||"maker unknown")}), so the name should stick. If it's a phone, tablet, watch or laptop, check the setting anyway so it never switches to Rotating.`}
+      <ul><li><b>iPhone / iPad:</b> Settings → Wi-Fi → tap ⓘ next to ${esc(wifi)} → Private Wi-Fi Address → <b>Fixed</b></li>
+      <li><b>Apple Watch:</b> Settings → Wi-Fi → tap the network → Private Address → <b>Fixed</b></li>
+      <li><b>Android:</b> Settings → Wi-Fi → gear next to the network → Privacy → “Use randomized MAC” is fine (it stays the same for this network). Avoid any “non-persistent” option.</li>
+      <li><b>Windows:</b> Settings → Network → Wi-Fi → Random hardware addresses → not “Change daily”.</li></ul>
+      <span class="sm">Switching to Fixed can give the device one new address. If so, name the new row that appears; the old one can be ignored.</span></div>`;
+  return`<div class="editor" data-mac="${esc(d.mac)}">${remind}
+    <div class="fields"><label>Name<input class="ed-name" maxlength="40" value="${esc(d.label||"")}" placeholder="${esc(d.name||"e.g. Mom's iPhone")}"></label>
+      <label>Company<input class="ed-maker" list="makers" maxlength="40" autocomplete="off" value="${esc(d.maker||"")}" placeholder="${esc(isPriv(d.mac)?"pick or type, e.g. Apple":(d.vendor_auto||d.vendor||"pick or type"))}"></label>
+      <label>Type<input class="ed-type" list="dtypes" maxlength="24" value="${esc(d.dtype||"")}" placeholder="${esc(d.kind_user?"":d.kind?d.kind+" (guess)":"pick or type")}"></label>
+      <button data-save>Save</button><button data-cancel>Cancel</button><span style="flex:1"></span><span class="blkbtns">${blockBtn(d)}</span></div>
+    <div class="ed-msg sm">${esc(d.mac)} · leave a box empty to go back to the automatic one · Company: type 2+ letters to search the full maker list</div></div>`;
+}
+function vendorCell(d){
+  if(d.maker_user)return`${esc(d.maker)}${isPriv(d.mac)?` <span class="chip info" title="${PRIV_TIP}">private</span>`:""}`;
+  return isPriv(d.mac)?`<span class="chip info" title="${PRIV_TIP}">private address</span>`:esc(d.vendor);
+}
+const MAKERS=["Apple","Samsung","Google","Amazon","Microsoft","Sony","LG","Roku","Motorola","OnePlus","Xiaomi","Huawei",
+  "Lenovo","Dell","HP","ASUS","Acer","Nintendo","Meta (Quest)","Ring","Reolink","Arlo","Wyze","TP-Link","Netgear",
+  "Eero","Sonos","Bose","Vizio","TCL","Hisense","Garmin","Fitbit","Philips Hue","Ecobee","Honeywell","Chamberlain (myQ)","Tesla"];
+function fillMakers(list){$("#makers").innerHTML=list.map(n=>`<option value="${esc(n)}">`).join("")}
+let MK_T=null;
+document.addEventListener("input",e=>{if(!e.target.classList||!e.target.classList.contains("ed-maker"))return;
+  const q=e.target.value.trim().toLowerCase();
+  const mine=MAKERS.filter(n=>!q||n.toLowerCase().includes(q));fillMakers(mine);
+  clearTimeout(MK_T);if(q.length<2)return;
+  MK_T=setTimeout(async()=>{const r=await api("/api/makers?q="+encodeURIComponent(q));
+    fillMakers([...mine,...(r.makers||[]).filter(n=>!mine.includes(n))])},250)});
+function closeEditors(){document.querySelectorAll("tr.edrow").forEach(r=>r.remove());EDIT=null}
+function openEditor(tr,mac){
+  const d=DEV.find(x=>x.mac===mac);if(!d)return;
+  closeEditors();EDIT=mac;
+  tr.insertAdjacentHTML("afterend",`<tr class="edrow"><td colspan="${tr.children.length}">${editorHTML(d)}</td></tr>`);
+  fillMakers(MAKERS);const inp=tr.nextElementSibling.querySelector(".ed-name");inp.focus();inp.select();
+}
+function redrawDevices(){devices();macLookup();topo()}
+async function reloadDevices(){const d=await api("/api/devices");DEV=d.devices;BLK=d.blocked||{};CAN_BLOCK=!!d.can_block;EDIT=null;redrawDevices()}
+async function setBlock(mac,action,msgEl,strong){
+  const d=DEV.find(x=>x.mac===mac)||{mac},nm=dname(d)||mac,was=BLK[mac]||{};
+  const q=action==="unblock"
+    ?`Unblock “${nm}” (${mac})?`+(was.strong?"\n\nPi-hole pauses for a few seconds for everyone while it lets the device have an address again. The device may need to turn Wi-Fi off and on.":"\n\nIt works again within a few seconds.")
+    :strong?`Block “${nm}” (${mac}) and kick it off the network?\n\nPi-hole stops answering its lookups AND won't give it an address when it reconnects. This also stops gadgets that use their own DNS.\n\nPi-hole pauses for a few seconds for everyone while it applies this. Nothing on the gateway changes.`
+    :`Block the internet for “${nm}” (${mac})?\n\nPi-hole stops answering its lookups, so apps and websites stop loading. It stays on the Wi-Fi. Instant, no pause for anyone else.\n\nDoesn't stop gadgets that use their own DNS (some Chromecasts/TVs); use “Block + kick off network” for those.`;
+  if(!confirm(q))return;
+  if(msgEl)msgEl.textContent=action==="block"?"Blocking…":"Unblocking…";
+  const r=await api("/api/devices/block",{mac,action,strong:!!strong});
+  if(r.error){if(msgEl)msgEl.textContent="✖ "+r.error;else alert(r.error);return}
+  await reloadDevices();
+}
+async function saveDevice(mac,label,type,msgEl,maker){
+  const r=await api("/api/devices/label",maker===undefined?{mac,label,type}:{mac,label,type,maker});
+  if(r.error){if(msgEl)msgEl.textContent="✖ "+r.error;else alert(r.error);return}
+  await reloadDevices();
+}
+document.addEventListener("click",e=>{
+  const ed=e.target.closest(".editor"),b=e.target.closest("button");if(!ed||!b)return;
+  const mac=ed.dataset.mac;
+  if(b.dataset.block||b.dataset.strong||b.dataset.unblock){setBlock(mac,b.dataset.unblock?"unblock":"block",ed.querySelector(".ed-msg"),!!b.dataset.strong);return}
+  if(b.hasAttribute("data-save"))saveDevice(mac,ed.querySelector(".ed-name").value,ed.querySelector(".ed-type").value,ed.querySelector(".ed-msg"),ed.querySelector(".ed-maker").value);
+  else if(b.hasAttribute("data-cancel")){closeEditors();redrawDevices()}
+  else if(b.hasAttribute("data-blockinfo")){
+    if(ed.querySelector(".blockinfo")){ed.querySelector(".blockinfo").remove();return}
+    ed.insertAdjacentHTML("beforeend",`<div class="blockinfo"><b>Blocking ${esc(mac)} from your Wi-Fi</b>
+      <ol><li><b>Your internet provider's app</b> (easiest, often works away from home): find this device (match the MAC above) → Pause / Block, if your router offers it.</li>
+      <li><b>Router settings page</b> (at home): open the router's address (it's printed on the router) → look for MAC filtering, Access control or Parental controls → add this MAC.</li>
+      <li><b>Change the Wi-Fi password</b> (kicks every device; you re-join the ones you want).</li></ol>
+      <span class="sm">This dashboard can't block devices on the gateway itself yet. Doing that automatically needs your permission for it to sign in to the gateway; see the README.</span></div>`)}
+});
+document.addEventListener("keydown",e=>{const ed=e.target.closest&&e.target.closest(".editor");if(!ed)return;
+  if(e.key==="Enter"&&e.target.tagName==="INPUT"){e.preventDefault();ed.querySelector("[data-save]").click()}
+  if(e.key==="Escape"){closeEditors();redrawDevices()}});
+const RS_Q={dashboard:"Restart the dashboard?\n\nIt comes back by itself in about 10 seconds. Nobody's internet is affected.",
+  pihole:"Restart Pi-hole?\n\nLookups pause for about 5 seconds for every device in the house.",
+  laptop:"Reboot this laptop?\n\nPi-hole and the dashboard go down for about 1-2 minutes. Devices in the house can't load new websites until it's back. Unsaved work in other apps on this laptop will be lost.",
+  gateway:"Restart the router?\n\nWi-Fi AND internet go down for everyone for about 3-5 minutes."};
+document.addEventListener("click",async e=>{const b=e.target.closest("button[data-restart]");if(!b)return;
+  const w=b.dataset.restart;if(!confirm(RS_Q[w]))return;
+  if(w==="laptop"&&!confirm("Are you sure? This reboots the computer now."))return;
+  $("#rs-msg").textContent="Working…";b.disabled=true;
+  const r=await api("/api/system/restart",{what:w});b.disabled=false;
+  $("#rs-msg").textContent=r.error?"✖ "+r.error:"✔ "+r.msg;
+  if(!r.error&&w==="dashboard")setTimeout(()=>location.reload(),12000);
+});
+$("#dev-blk").addEventListener("click",e=>{const b=e.target.closest("button[data-unblock]");if(b)setBlock(b.dataset.unblock,"unblock")});
+$("#dev-tb").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.ed)openEditor(b.closest("tr"),b.dataset.ed);
+  else if(b.dataset.adopt){const d=DEV.find(x=>x.mac===b.dataset.adopt);if(d&&d.label_hint)saveDevice(d.mac,d.label_hint.label,d.dtype||"")}
+});
+
+// ---- MAC address lookup (Tools)
+let ouiTimer=null,ouiFor="";
+function macLookup(){
+  if(EDIT&&document.querySelector("#ml-tb tr.edrow"))return;
+  const raw=$("#ml-q").value.trim(),hex=raw.toLowerCase().replace(/[^0-9a-f]/g,""),f=$("#ml-f").value;
+  $("#ml-sub").textContent=`${DEV.length} known devices`;
+  const bad=/[^0-9a-fA-F:\-.\s]/.test(raw);
+  if(!hex){$("#ml-tb").innerHTML=`<tr><td colspan="8" class="muted">${bad?"MAC addresses only contain 0-9 and A-F.":"Type at least one character, e.g. C0"}</td></tr>`;
+    $("#ml-info").textContent=bad?"MAC addresses only contain the characters 0-9 and A-F.":"Matches every device your gateway has seen whose MAC address starts with what you type. Separators (: or -) are optional.";return}
+  const rows=DEV.filter(d=>d.mac.replace(/:/g,"").startsWith(hex)&&(f==="all"||d.active));
+  const n=hex.length+Math.floor(Math.max(0,hex.length-1)/2);
+  $("#ml-tb").innerHTML=rows.map(d=>{const st=!d.active?chip("off","Offline"):d.ping_ok===0?chip("warn","No ping"):chip("good","Online");
+    return`<tr><td>${st}</td><td class="mono"><span class="mac-hl">${esc(d.mac.slice(0,n))}</span>${esc(d.mac.slice(n))}</td>
+      <td><span class="dn ${d.label?"lab":""}">${esc(dname(d)||"—")}</span>${d.label&&d.name&&d.label!==d.name?`<div class="sm">${esc(d.name)}</div>`:""}</td>${typeCell(d)}
+      <td class="mono">${esc(d.ip||"—")}</td><td>${vendorCell(d)}</td>
+      <td class="mono">${d.last_seen?ago(d.last_seen):esc(d.gw_last||"—")}</td><td style="text-align:right"><button data-ml="${esc(d.mac)}">✎ Name / type</button></td></tr>`}).join("")||
+    `<tr><td colspan="8" class="muted">No ${f==="active"?"online ":""}device has a MAC starting with ${esc(hex.match(/.{1,2}/g).join(":").toUpperCase())}.</td></tr>`;
+  const pre=hex.match(/.{1,2}/g).join(":").toUpperCase(),priv=hex.length>=2&&isPriv(hex);
+  let info=`${rows.length} of ${DEV.length} known devices start with ${pre}. `;
+  if(hex.length>=2)info+=priv?`${pre.slice(0,2)} is a private (made-up) address: phones, tablets and watches use these, so the maker can't be looked up.`:`${pre.slice(0,2)} is a real maker's address (the 2nd character isn't 2, 6, A or E). `;
+  $("#ml-info").textContent=info;
+  if(!priv&&hex.length>=2){const key=hex.slice(0,6);clearTimeout(ouiTimer);ouiTimer=setTimeout(async()=>{
+    const r=await api("/api/oui?p="+key);if($("#ml-q").value.toLowerCase().replace(/[^0-9a-f]/g,"").slice(0,6)!==key)return;
+    $("#ml-info").textContent=info+(key.length>=6?(r.vendors[0]?`${pre.slice(0,8)} belongs to ${r.vendors[0].vendor}.`:"That maker block isn't in the local database."):
+      `${r.count} makers have address blocks starting with ${pre}. Type up to 6 characters (e.g. ${pre.slice(0,2)}:3F:D5) to see which one.`)},250)}
+}
+$("#ml-q").oninput=()=>{closeEditors();macLookup()};$("#ml-f").onchange=macLookup;
+$("#ml-tb").addEventListener("click",e=>{const b=e.target.closest("[data-ml]");if(b)openEditor(b.closest("tr"),b.dataset.ml)});
+
+// The ad blocker can be Pi-hole or AdGuard Home: rename the tab and panel titles once we know which.
+function blockerName(n){
+  if(!n||n==="Pi-hole"||window._bn===n)return;window._bn=n;
+  document.querySelectorAll("nav.views a, .panel h2, .rs b, #qf-sub").forEach(el=>{for(const t of el.childNodes)
+    if(t.nodeType===3&&t.nodeValue.includes("Pi-hole"))t.nodeValue=t.nodeValue.replace(/Pi-hole/g,n)});
+}
+function pihole(){
+  const p=S.pihole;blockerName(p.name);
+  $("#bd-pihole").textContent=p.configured&&p.ok&&p.pct!=null?Number(p.pct).toFixed(0)+"%":"";
+  paStats();
+  if(!p.configured){$("#ph").innerHTML=`<div class="find info"><span class="ic">•</span><div><b>No ad blocker connected</b><span>The dashboard works without one. To add Pi-hole or AdGuard Home later, run <code>./install/install.sh</code> again and pick it, or set <code>PIHOLE_URL</code> / <code>ADGUARD_URL</code> in <code>config/ncc.env</code> (password in <code>~/.config/ncc/secrets.env</code>), then run <code>./ncc restart</code>.</span></div></div>`;return}
+  const list=a=>(a&&a.length)?`<ul class="toplist">${a.map(([k,v])=>`<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>`:'<p class="note">not available</p>';
+  $("#ph").innerHTML=`<div class="controls">${!p.ok?chip("crit","Unreachable"):(p.blocking==="enabled"||p.blocking===true)?chip("good","Blocking enabled"):chip("warn","Blocking "+p.blocking)}
+     <span class="muted">${esc(p.host)} · API ${esc(p.api||"?")}${p.version?" · "+esc(p.version):""} · DNS ${p.dns&&p.dns.ok?"✔ "+p.dns.ms+" ms":"✖"}</span>
+     ${p.controls?`<span style="margin-left:auto"></span><button class="danger" data-ph="disable">Pause 5 min</button><button data-ph="enable">Enable</button>`:""}</div>
+   ${p.error?`<p class="note" style="color:var(--serious)">${esc(p.error)}</p>`:""}
+   <dl class="kv"><dt>Queries</dt><dd>${p.total??"—"}</dd><dt>Blocked</dt><dd>${p.blocked??"—"} (${p.pct!=null?Number(p.pct).toFixed(1):"—"}%)</dd>
+   <dt>Cached / forwarded</dt><dd>${p.cached??"—"} / ${p.forwarded??"—"}</dd><dt>Clients</dt><dd>${p.clients??"—"}</dd><dt>Domains on blocklist</dt><dd>${p.gravity??"—"}</dd></dl>
+   <div class="cols2" style="margin-top:12px"><div><h2>Top domains</h2>${list(p.top_domains)}</div><div><h2>Top blocked</h2>${list(p.top_blocked)}</div></div>
+   <div style="margin-top:12px"><h2>Top clients</h2>${list(p.top_clients)}</div>
+   <p class="note">${p.lists?'<a class="lnk" href="#/pihole">Manage allow / block lists →</a> · ':""}${p.controls?"":"The pause/resume blocking switch is off (PIHOLE_CONTROLS=0)."}</p>`;
+  document.querySelectorAll("[data-ph]").forEach(b=>b.onclick=async()=>{
+    const en=b.dataset.ph==="enable";if(!confirm(en?"Re-enable Pi-hole blocking?":"Pause Pi-hole ad blocking for 5 minutes for the whole network?"))return;
+    const r=await api("/api/pihole/blocking",{enable:en,seconds:300});alert(r.error||"Done");load()});
+}
+
+function security(){
+  const sec=S.security||{},a=sec.auth||{};
+  const pub=sec.listeners_public||[];
+  $("#sec").innerHTML=`<dl class="kv">
+    <dt>Monitored services</dt><dd>${S.last.gw.ok?"gateway ✔":"gateway ✖"} · ${S.last.internet?"internet ✔":"internet ✖"} · ${S.last.dns.ok?"dns ✔":"dns ✖"} · ${S.pihole.configured?(S.pihole.ok?"pi-hole ✔":"pi-hole ✖"):"pi-hole —"}</dd>
+    <dt>SSH server</dt><dd>${a.sshd?"running (watched)":"not installed / not running"}</dd>
+    <dt>Auth log</dt><dd>${a.available?"watched via adm group":"unavailable"}</dd>
+    <dt>Network-exposed ports on this PC</dt><dd>${pub.length?esc(pub.join(", ")):"none (all services localhost-only)"}</dd>
+    <dt>Notifications</dt><dd>desktop${S.config.ntfy?" + ntfy push":""}</dd></dl>
+    <h2 style="margin-top:14px">Recent failed authentication</h2>
+    ${(a.recent&&a.recent.length)?`<ul class="toplist">${a.recent.slice().reverse().map(r=>`<li><span title="${esc(r)}">${esc(r.replace(/^\S+\s+\S+\s+/,""))}</span><span>${esc(r.slice(0,16).replace("T"," "))}</span></li>`).join("")}</ul>`:'<p class="note">None recorded.</p>'}
+    <p class="note">Alerts only; nothing is blocked or changed automatically. A failed screen-unlock (gdm-password) counts as a failed login.</p>`;
+}
+
+// ---- Pi-hole allow / block lists
+const WILD=/^\(\\\.\|\^\)(.+)\$$/;
+const unwild=e=>{const m=e.match(WILD);return m?m[1].replace(/\\\./g,"."):null};
+function shown(entry,kind){const w=kind==="regex"&&unwild(entry);return w?"*."+w:entry}
+function setLs(st,msg){const o=$("#ls-out");o.className="answer st-"+st;o.innerHTML=`<span class="src">${esc(st)}</span>${esc(msg)}`}
+async function loadLists(){
+  if(!S||!S.pihole.configured)return;
+  const r=await api("/api/pihole/domains");
+  if(r.error){$("#ls-tb").innerHTML=`<tr><td colspan="6" class="muted">Couldn't read lists: ${esc(r.error)}</td></tr>`;return}
+  LISTS=r;const ed=r.editable;
+  ["#ls-block","#ls-allow","#ls-restart"].forEach(s=>$(s).disabled=!ed);
+  const deny=r.domains.filter(d=>d.type==="deny").length,allow=r.domains.filter(d=>d.type==="allow").length;
+  $("#t-lists").innerHTML=`${ed?chip("good","Editable"):chip("off","Read-only")}<div class="big">${deny}<small>blocked · ${allow} allowed</small></div><div class="meta">your entries · ${S.pihole.gravity??"—"} on blocklists</div>`;
+  $("#ls-sub").textContent=`${r.domains.length} entr${r.domains.length===1?"y":"ies"}${ed?"":" · read-only (PIHOLE_LISTS=0)"}`;
+  lsTable();
+}
+function lsTable(){
+  if(!LISTS)return;
+  const q=$("#ls-q").value.toLowerCase(),f=$("#ls-f").value;
+  const rows=LISTS.domains.map((d,i)=>({...d,i})).filter(d=>(!f||d.type===f)&&(!q||(d.domain+" "+(d.comment||"")).toLowerCase().includes(q)));
+  $("#ls-tb").innerHTML=rows.map(d=>{const w=d.kind==="regex"&&unwild(d.domain);
+    return`<tr><td class="mono" style="color:var(--ink)">${esc(shown(d.domain,d.kind))}</td><td>${d.type==="deny"?chip("crit","Blocked"):chip("good","Allowed")}${d.enabled===false?" "+chip("off","disabled"):""}</td>
+    <td class="muted">${d.kind==="exact"?"this name only":w?"name + all subdomains":"pattern (regex)"}</td><td>${esc(d.comment||"")}</td>
+    <td class="mono">${d.date_added?new Date(d.date_added*1000).toLocaleDateString():"—"}</td>
+    <td style="text-align:right">${LISTS.editable?`<button class="danger" data-rm="${d.i}">Remove</button>`:""}</td></tr>`}).join("")||
+    `<tr><td colspan="6" class="muted">${LISTS.domains.length?"No matching entries.":"No entries yet. Block or allow a domain above, or use the buttons in the live query feed."}</td></tr>`;
+}
+async function listChange(body){
+  const verb=body.op==="add"?(body.list==="deny"?"Blocking":"Allowing"):"Removing";
+  setLs("working",`${verb} ${body.domain}… then checking that Pi-hole picked it up.`);
+  ["#ls-block","#ls-allow"].forEach(s=>$(s).disabled=true);
+  let r;try{r=await api("/api/pihole/domains",body)}finally{["#ls-block","#ls-allow"].forEach(s=>$(s).disabled=!(LISTS&&LISTS.editable))}
+  if(r.error){setLs("error",r.error);return r}
+  const done=body.op==="add"?(body.list==="deny"?"Blocked":"Allowed"):"Removed";
+  let msg=`${done} ${shown(r.entry,r.kind)}${body.op==="remove"?" from the "+(r.list==="deny"?"block":"allow")+" list":""}.`;
+  if(r.verified===true)msg+=` Checked: Pi-hole ${r.now_blocked?"now blocks":"now answers normally for"} ${r.test}.`;
+  else if(r.verified===false)msg+=` Saved, but a test lookup of ${r.test} is still ${r.now_blocked?"blocked":"not blocked"}, so another rule probably covers it. Use Check to see which.`;
+  else if(r.note)msg+=" "+r.note;
+  if(r.restarted)msg+=" Pi-hole's DNS was restarted automatically to apply it.";
+  setLs("done",msg);loadLists();events();return r;
+}
+function lsAdd(list){const dom=$("#ls-dom").value.trim();if(!dom){$("#ls-dom").focus();return}
+  listChange({op:"add",list,domain:dom,subdomains:$("#ls-wild").checked,comment:$("#ls-cmt").value.trim()}).then(r=>{if(r&&!r.error){$("#ls-dom").value="";$("#ls-cmt").value=""}})}
+$("#ls-block").onclick=()=>lsAdd("deny");$("#ls-allow").onclick=()=>lsAdd("allow");
+$("#ls-dom").onkeydown=e=>{if(e.key==="Enter")$("#ls-check").click()};
+$("#ls-check").onclick=async()=>{const dom=$("#ls-dom").value.trim();if(!dom)return;setLs("checking","Looking up "+dom+"…");
+  const r=await api("/api/pihole/search?d="+encodeURIComponent(dom));if(r.error){setLs("error",r.error);return}
+  const why=[...r.lists.map(x=>`your ${x.type==="deny"?"block":"allow"} list (${shown(x.domain,x.kind)})`),...r.gravity.map(x=>`${x.type==="block"?"blocklist":"allowlist"} ${x.address}`)];
+  setLs("done",`${r.domain} is ${r.blocked_now?"BLOCKED":"not blocked"} right now.`+(why.length?` Listed on: ${why.join("; ")}.`:" It isn't on any list.")+(r.blocked_now?" Press Allow to unblock it.":""))};
+$("#ls-q").oninput=lsTable;$("#ls-f").onchange=lsTable;
+$("#ls-tb").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(!b)return;const d=LISTS.domains[+b.dataset.rm];
+  if(!confirm(`Remove ${shown(d.domain,d.kind)} from the ${d.type==="deny"?"block":"allow"} list?`))return;
+  listChange({op:"remove",list:d.type,kind:d.kind,domain:d.domain,test:unwild(d.domain)||undefined})});
+$("#ls-restart").onclick=async()=>{if(!confirm("Restart Pi-hole's DNS service? Lookups pause for a second or two."))return;
+  setLs("working","Restarting Pi-hole DNS…");const r=await api("/api/pihole/restartdns",{});setLs(r.error?"error":"done",r.error||"Pi-hole DNS restarted.")};
+$("#qfeed").addEventListener("click",async e=>{const b=e.target.closest("[data-qd]");if(!b)return;
+  const allow=b.dataset.ql==="allow",dom=b.dataset.qd;
+  if(!confirm(`${allow?"Allow":"Block"} ${dom} for every device that uses Pi-hole?`))return;
+  b.disabled=true;const r=await listChange({op:"add",list:b.dataset.ql,domain:dom,comment:"from live query feed"});
+  if(r.error)alert(r.error);else if(VIEW!=="pihole")alert($("#ls-out").textContent.replace(/^done/,""))});
+function paStats(){
+  const p=S&&S.pihole;if(!p||!p.configured)return;
+  $("#pa-stats").innerHTML=`<dt>Queries today</dt><dd>${p.total??"—"}</dd><dt>Blocked today</dt><dd>${p.blocked??"—"}</dd><dt>Blocked share</dt><dd>${p.pct!=null?Number(p.pct).toFixed(1)+"%":"—"}</dd><dt>Devices asking</dt><dd>${p.clients??"—"}</dd><dt>On blocklists</dt><dd>${p.gravity??"—"}</dd>`;
+}
+
+// ---- Help tab: README.md rendered with a small built-in Markdown renderer (no external libraries)
+let GUIDE=null;
+const slug=t=>t.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+function mdInline(t){
+  const keep=[];t=esc(t).replace(/`([^`]+)`/g,(_,c)=>{keep.push(`<code>${c}</code>`);return`\u0000${keep.length-1}\u0000`});
+  t=t.replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/(^|[\s(])\*([^*\s][^*]*)\*/g,"$1<i>$2</i>")
+     .replace(/(https?:\/\/[^\s<)]+[^\s<).,;:])/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+  return t.replace(/\u0000(\d+)\u0000/g,(_,i)=>keep[+i]);
+}
+function mdRender(src){
+  const L=src.replace(/\r/g,"").split("\n"),out=[];let i=0,para=[],list=null;
+  const flushP=()=>{if(para.length){out.push(`<p>${mdInline(para.join(" "))}</p>`);para=[]}};
+  const flushL=()=>{if(list){out.push(`<ul>${list.map(x=>`<li>${mdInline(x)}</li>`).join("")}</ul>`);list=null}};
+  while(i<L.length){const ln=L[i];
+    if(/^```/.test(ln)){flushP();flushL();const code=[];i++;while(i<L.length&&!/^```/.test(L[i]))code.push(L[i++]);i++;
+      out.push(`<pre><button data-copy>Copy</button><code>${code.map(c=>{const k=c.indexOf("#");return k>0?esc(c.slice(0,k))+`<span class="cm">${esc(c.slice(k))}</span>`:esc(c)}).join("\n")}</code></pre>`);continue}
+    let m;
+    if((m=ln.match(/^(#{1,3})\s+(.*)/))){flushP();flushL();out.push({h:m[1].length,t:m[2]});i++;continue}
+    if(/^\|/.test(ln)){flushP();flushL();const rows=[];while(i<L.length&&/^\|/.test(L[i]))rows.push(L[i++]);
+      const cells=r=>r.replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+      const body=rows.filter(r=>!/^\|[\s|:-]+\|$/.test(r));
+      out.push(`<table><thead><tr>${cells(body[0]).map(c=>`<th>${mdInline(c)}</th>`).join("")}</tr></thead><tbody>${body.slice(1).map(r=>`<tr>${cells(r).map(c=>`<td>${mdInline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);continue}
+    if((m=ln.match(/^[*-]\s+(.*)/))){flushP();(list=list||[]).push(m[1]);i++;continue}
+    if(list&&/^\s{2,}\S/.test(ln)){list[list.length-1]+=" "+ln.trim();i++;continue}
+    if(!ln.trim()){flushP();flushL();i++;continue}
+    flushL();para.push(ln.trim());i++;
+  }
+  flushP();flushL();
+  // group into hero + one <section> per ## heading
+  let html="",toc=[],open=false,n=0;
+  for(const b of out){
+    if(typeof b==="string"){html+=b;continue}
+    if(b.h===1){html+=`<div class="hero"><h1>${mdInline(b.t)}</h1>`;open="hero";continue}
+    if(open)html+=open==="hero"?"</div>":"</section>";
+    n++;const id="g-"+slug(b.t);toc.push({id,t:b.t});
+    html+=`<section class="gs" id="${id}"><h2><span class="n">${String(n).padStart(2,"0")}</span>${mdInline(b.t)}</h2>`;open="sec";
+  }
+  if(open)html+=open==="hero"?"</div>":"</section>";
+  return{html,toc};
+}
+async function loadGuide(){
+  if(GUIDE)return;
+  try{const r=await fetch("/api/readme");if(!r.ok)throw new Error(r.status);GUIDE=mdRender(await r.text())}
+  catch(e){$("#guide").innerHTML=`<p class="note">Couldn't load the guide (${esc(e.message)}).</p>`;return}
+  $("#guide").innerHTML=GUIDE.html;
+  $("#g-toc").innerHTML=GUIDE.toc.map(x=>`<li data-for="${x.id}"><a href="#/guide" data-go="${x.id}">${mdInline(x.t)}</a></li>`).join("");
+  const links=[...document.querySelectorAll("#g-toc a")];
+  const io=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){links.forEach(a=>a.classList.toggle("on",a.dataset.go===e.target.id))}},{rootMargin:"-140px 0px -65% 0px"});
+  document.querySelectorAll("#guide section.gs").forEach(sec=>io.observe(sec));
+}
+$("#g-toc").addEventListener("click",e=>{const a=e.target.closest("[data-go]");if(!a)return;e.preventDefault();
+  document.getElementById(a.dataset.go).scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})});
+$("#guide").addEventListener("click",async e=>{const b=e.target.closest("[data-copy]");if(!b)return;
+  const txt=b.nextElementSibling.textContent;try{await navigator.clipboard.writeText(txt);b.textContent="Copied ✓"}catch(err){b.textContent="Select & copy"}setTimeout(()=>b.textContent="Copy",1500)});
+$("#g-q").addEventListener("input",()=>{
+  if(!GUIDE)return;const q=$("#g-q").value.trim().toLowerCase();
+  $("#guide").innerHTML=GUIDE.html;let hits=0;
+  document.querySelectorAll("#guide section.gs").forEach(sec=>{const hit=!q||sec.textContent.toLowerCase().includes(q);sec.classList.toggle("miss",!hit);
+    const li=document.querySelector(`#g-toc li[data-for="${sec.id}"]`);if(li)li.classList.toggle("miss",!hit);
+    if(hit&&q){hits++;const w=document.createTreeWalker(sec,NodeFilter.SHOW_TEXT),nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+      for(const t of nodes){const k=t.data.toLowerCase().indexOf(q);if(k<0||t.parentElement.closest("button"))continue;
+        const mk=document.createElement("mark"),r=document.createRange();r.setStart(t,k);r.setEnd(t,k+q.length);r.surroundContents(mk)}}});
+  const hero=document.querySelector("#guide .hero");if(hero)hero.hidden=!!q;
+  if(q&&!hits)$("#guide").insertAdjacentHTML("beforeend",`<p class="nohit">Nothing in the guide matches “${esc(q)}”.</p>`);
+});
+
+// ---- dashboards (views)
+const VIEWS=["overview","internet","devices","pihole","system","security","troubleshoot","tools","guide"];let VIEW="overview";
+function internetExtras(){if(VIEW!=="internet"&&VIEW!=="overview")return;usageUI().catch(()=>{});sitesUI().catch(()=>{});
+  if(VIEW==="internet"&&!$("#wf").innerHTML)wifiUI().catch(()=>{})}
+function setView(v){
+  if(!VIEWS.includes(v))v="overview";const changed=v!==VIEW;VIEW=v;document.body.dataset.view=v;
+  document.querySelectorAll("[data-v]").forEach(el=>{const vs=el.dataset.v.split(" ");
+    el.hidden=v==="overview"?vs.includes("only"):!vs.includes(v);
+    const sp=(el.dataset.span||"").split(" ").map(x=>x.split(":")).find(([k])=>k===v);
+    if(sp)el.style.setProperty("--span",sp[1]);else el.style.removeProperty("--span")});
+  document.querySelectorAll("nav.views a").forEach(a=>a.dataset.view===v?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current"));
+  try{localStorage.setItem("ncc.view",v)}catch(e){}
+  document.title=(v==="overview"?"":document.querySelector(`nav.views a[data-view=${v}]`).firstChild.textContent.trim()+" · ")+"Network Command Center";
+  if(S){charts();topo();liveCharts()}
+  if(changed)internetExtras();
+  if(v==="pihole")loadLists();
+  if(v==="guide")loadGuide();
+  if(changed)scrollTo(0,0);
+}
+addEventListener("hashchange",()=>setView(location.hash.replace(/^#\/?/,"")));
+
+async function events(){
+  const ev=await api("/api/events");
+  $("#events").innerHTML=ev.map(e=>`<div class="ev"><span class="muted">${new Date(e.ts*1000).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span><span class="lv-${e.level}">${ICON[e.level]||"•"} ${e.level}</span><span class="m">${esc(e.msg)}</span></div>`).join("")||'<p class="note">No events yet.</p>';
+}
+
+async function load(){
+  try{
+    [S,HIST]=await Promise.all([api("/api/status"),api("/api/history?hours="+$("#range").value)]);
+    if(S.version)$("#ver").textContent="v"+S.version;
+    const d=await api("/api/devices");DEV=d.devices;BLK=d.blocked||{};CAN_BLOCK=!!d.can_block;
+    $("#ai-sub").textContent=S.config.ai?"rules + Claude (opt-in enabled)":"rule-based · Claude off";
+    $("#ask-ai").textContent=S.config.ai?"Ask Claude":"Ask (rules)";
+    loadExtras().catch(()=>{});if(!$("#al").innerHTML)alertsUI();if(!$("#set").innerHTML)settingsUI().then(speedUI).catch(()=>{});if(!$("#ra").innerHTML||VIEW==="security")remoteUI();internetExtras();
+    tiles();findings();sys();charts();topo();devices();macLookup();pihole();security();events();
+    if(VIEW==="pihole"&&!LISTS)loadLists();
+  }catch(e){$("#overall").outerHTML=`<span id="overall" class="chip crit"><span class="dot"></span>Dashboard backend unreachable</span>`}
+}
+// ---- live stream
+const LB=[];let ES=null,liveTimer=null,lastQ=new Set();
+function liveCharts(){
+  const o=(k,fmt,color,ymax)=>lineChart($("#lc-"+k),LB,k,{fmt,color,ymax});
+  o("cpu",v=>v.toFixed(0)+"%","var(--cyan)",100);o("gw",v=>v.toFixed(1)+" ms","var(--blue)");
+  o("rx",fmtbps,"var(--teal)");o("tx",fmtbps,"var(--teal)");o("mem",v=>v.toFixed(0)+"%","var(--cyan)",100);
+  o("nrx",fmtbps,"var(--blue)");o("qpm",v=>v.toFixed(0),"var(--teal)",3);o("temp",v=>(v*9/5+32).toFixed(0)+" °F","var(--serious)");
+  lineChart($("#lc-pq"),LB,"qpm",{fmt:v=>v.toFixed(0),color:"var(--teal)",ymax:3});
+  lineChart($("#lc-pb"),LB,"bpm",{fmt:v=>v.toFixed(1),color:"var(--serious)",ymax:1.5});
+}
+function onFrame(f){
+  const ph=f.pihole||{};
+  const old=LB.find(x=>x.blk!=null&&f.ts-x.ts<=75);let bpm=null;
+  if(old&&ph.blocked!=null&&f.ts-old.ts>=20&&ph.blocked>=old.blk)bpm=(ph.blocked-old.blk)/((f.ts-old.ts)/60);
+  LB.push({ts:f.ts,cpu:f.cpu,gw:f.gw_ms,rx:f.wan&&f.wan.rx_bps,tx:f.wan&&f.wan.tx_bps,mem:f.mem_pct,nrx:f.nic_rx_bps,qpm:ph.qpm,temp:f.temp,blk:ph.blocked??null,bpm});
+  while(LB.length&&LB[0].ts<f.ts-CHART_S)LB.shift();
+  $("#live").className="chip live-chip";$("#live").innerHTML='<span class="dot"></span>Live';
+  clearTimeout(liveTimer);liveTimer=setTimeout(()=>{$("#live").className="chip live-chip stale";$("#live").innerHTML='<span class="dot"></span>Stalled'},Math.max(10,3*(f.period||1))*1000);
+  if(f.period)$("#lt-per").textContent=f.period+" s";
+  $("#lv-cpu").textContent=f.cpu!=null?f.cpu.toFixed(0)+"%":"—";$("#lv-gw").textContent=f.gw_ok?f.gw_ms.toFixed(1)+" ms":"no reply";
+  $("#lv-rx").textContent=fmtbps(f.wan&&f.wan.rx_bps);$("#lv-tx").textContent=fmtbps(f.wan&&f.wan.tx_bps);
+  $("#lv-mem").textContent=f.mem_pct.toFixed(0)+"% · "+fmtB(f.mem_avail)+" free";$("#lv-nrx").textContent=fmtbps(f.nic_rx_bps);
+  $("#lv-qpm").textContent=ph.qpm!=null?ph.qpm:"—";$("#pa-q").textContent=ph.qpm!=null?ph.qpm:"—";
+  const lb=LB[LB.length-1];$("#pa-b").textContent=lb.bpm!=null?lb.bpm.toFixed(1):"measuring…";$("#lv-temp").textContent=f.temp!=null?(f.temp*9/5+32).toFixed(0)+" °F":"n/a";
+  liveCharts();
+  if(S&&S.last&&S.last.sys){ // keep tiles and the system panel current between full refreshes
+    Object.assign(S.last.sys,{cpu:f.cpu,mem_pct:f.mem_pct,mem_avail:f.mem_avail,swap_used:f.swap_used,temp:f.temp??S.last.sys.temp});
+    S.last.gw={...S.last.gw,ok:f.gw_ok,ms:f.gw_ms};
+    if(f.wan&&f.wan.rx_bps!=null)Object.assign(S.gateway.broadband,f.wan);
+    if(S.pihole.configured&&ph.ok)Object.assign(S.pihole,{total:ph.total,blocked:ph.blocked,pct:ph.pct,blocking:ph.blocking});
+    tiles();sys();paStats();
+    $("#bd-pihole").textContent=S.pihole.ok&&S.pihole.pct!=null?Number(S.pihole.pct).toFixed(0)+"%":"";
+  }
+  qfeed(ph);
+}
+let qSig="";
+function qfeed(ph){
+  if(!S||!S.pihole.configured){$("#qfeed").innerHTML='<p class="note">Pi-hole is not linked yet.</p>';return}
+  if(!ph.ok){$("#qfeed").innerHTML=`<p class="note">Pi-hole not answering${ph.error?" ("+esc(ph.error)+")":""}.</p>`;return}
+  if(!ph.queries){$("#qfeed").innerHTML='<p class="note">The live query feed needs Pi-hole v6.</p>';return}
+  const sig=ph.queries.map(q=>q.t+q.domain+q.status).join("|")+!!S.pihole.lists;
+  if(sig===qSig){$("#qf-sub").textContent=`${ph.qpm!=null?ph.qpm+" / min · ":""}${ph.pct!=null?Number(ph.pct).toFixed(1)+"% blocked today":""}`;return}
+  qSig=sig;  // redraw only when there's a new query, so the allow/block buttons don't get replaced every second
+  const seen=new Set();
+  const ed=S.pihole.lists;
+  $("#qfeed").innerHTML=ph.queries.map(q=>{const id=q.t+q.domain;seen.add(id);
+    const qa=ed&&q.domain?`<button class="qa" data-qd="${esc(q.domain)}" data-ql="${q.blocked?"allow":"deny"}" title="${q.blocked?"Allow":"Block"} ${esc(q.domain)}">${q.blocked?"allow":"block"}</button>`:"";
+    return`<div class="qrow ${q.blocked?"blk":""} ${lastQ.size&&!lastQ.has(id)?"fresh":""}"><span class="muted">${new Date(q.t*1000).toLocaleTimeString([], {hour12:false})}</span><span class="d" title="${esc(q.domain)}">${esc(q.domain)}</span><span class="${q.blocked?"":"muted"}" style="${q.blocked?"color:var(--serious)":""}">${q.blocked?"✖ blocked":esc((q.status||"").toLowerCase())}${qa}</span><span class="c">${esc(BYIP[q.client]||q.client)} · ${esc(q.type)}${q.ms!=null?" · "+q.ms+" ms":""}</span></div>`}).join("")||'<p class="note">No queries yet.</p>';
+  lastQ=seen;$("#qf-sub").textContent=`${ph.qpm!=null?ph.qpm+" / min · ":""}${ph.pct!=null?Number(ph.pct).toFixed(1)+"% blocked today":""}`;
+}
+function liveStart(){if(ES)return;ES=new EventSource("/api/live");ES.onmessage=e=>onFrame(JSON.parse(e.data));
+  ES.addEventListener("signout",()=>{ES.close();location.reload()});  // signed out from the laptop: back to the sign-in page
+  ES.onerror=()=>{fetch("/api/remote",{cache:"no-store"}).then(r=>{if(r.status===401)location.reload()}).catch(()=>{});$("#live").className="chip live-chip stale";$("#live").innerHTML='<span class="dot"></span>Reconnecting'}}
+function liveStop(){if(ES){ES.close();ES=null}$("#live").className="chip live-chip stale";$("#live").innerHTML='<span class="dot"></span>Paused'}
+
+function ans(src,txt){$("#answer").innerHTML=`<span class="src">${esc(src)}</span>${esc(txt)}`}
+document.querySelectorAll("[data-topic]").forEach(b=>b.onclick=async()=>{ans("thinking","…");const r=await api("/api/ask",{topic:b.dataset.topic,question:b.textContent});ans(r.source==="claude"?"claude · based on live data":"rule engine · live data",r.answer)});
+$("#ask-ai").onclick=async()=>{const q=$("#q").value.trim();if(!q)return;ans("thinking",S&&S.config.ai?"Asking Claude with a redacted snapshot of current measurements…":"…");
+  $("#ask-ai").disabled=true;try{const r=await api("/api/ask",{question:q,ai:true});ans(r.source==="claude"?"claude · based on live data":"rule engine · live data",r.answer)}finally{$("#ask-ai").disabled=false}};
+$("#q").onkeydown=e=>{if(e.key==="Enter")$("#ask-ai").click()};
+document.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{const arg=$("#tool-arg").value.trim();if(!arg)return;
+  $("#tool-out").innerHTML='<span class="src">running</span>…';const r=await api("/api/action",{name:b.dataset.act,arg});
+  $("#tool-out").innerHTML=`<span class="src">${esc(b.dataset.act)} ${esc(arg)}</span>${esc(r.output||JSON.stringify(r,null,2))}`});
+$("#refresh").onclick=async()=>{$("#refresh").disabled=true;await api("/api/action",{name:"recheck"});await load();$("#refresh").disabled=false};
+$("#rescan").onclick=async()=>{$("#rescan").disabled=true;await api("/api/action",{name:"rescan"});await load();$("#rescan").disabled=false};
+$("#range").onchange=load;$("#dev-q").oninput=devices;$("#dev-f").onchange=devices;
+let rz;addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(S){charts();topo();liveCharts()}},200)});
+function tick(){const d=new Date();$("#clock-t").textContent=d.toLocaleTimeString();
+  $("#clock-d").textContent=d.toLocaleDateString([], {weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+tick();setInterval(tick,1000);
+// ---- full screen: button or the F key (Esc or F again to leave)
+// The desktop app starts in the browser's own full screen (--start-fullscreen); only F11 can leave that.
+const winFS=()=>!document.fullscreenElement&&(matchMedia("(display-mode: fullscreen)").matches||(innerWidth>=screen.width&&innerHeight>=screen.height));
+function fsLabel(){$("#fs").textContent=document.fullscreenElement?"✕ Exit full screen":winFS()?"✕ Exit: press F11":"⛶ Full screen"}
+function toggleFS(){if(document.fullscreenElement)document.exitFullscreen();
+  else if(winFS()){$("#fs").textContent="Press F11 to exit";setTimeout(fsLabel,2500)}
+  else document.documentElement.requestFullscreen().catch(()=>{})}
+// ---- Display mode: show /wall in a full-screen frame over the dashboard (the click lets the browser go full screen;
+// a normal page change would drop it). Leaving full screen closes the frame. Without full screen support, open the page.
+$("#tvmode").onclick=e=>{
+  if(!document.fullscreenEnabled||e.ctrlKey||e.metaKey||e.shiftKey||e.button)return;
+  e.preventDefault();
+  const f=document.createElement("iframe");f.id="display";f.src="/wall";f.title="Display mode";f.allow="fullscreen; screen-wake-lock";
+  f.style.cssText="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999;background:#05090d";
+  document.body.appendChild(f);
+  f.requestFullscreen().then(()=>f.focus()).catch(()=>{f.remove();location.href="/wall"})};
+const closeDisplay=()=>{const f=$("#display");if(!f)return;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});f.remove()};
+addEventListener("message",e=>{if(e.origin===location.origin&&e.data&&e.data.ncc==="display-exit")closeDisplay()});
+document.addEventListener("fullscreenchange",()=>{if(!document.fullscreenElement)closeDisplay()});
+$("#fs").onclick=toggleFS;addEventListener("resize",fsLabel);fsLabel();
+document.addEventListener("keydown",e=>{if((e.key==="f"||e.key==="F")&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)){e.preventDefault();toggleFS()}});
+document.addEventListener("fullscreenchange",()=>{const on=!!document.fullscreenElement;fsLabel();document.body.classList.toggle("fs",on);
+  setTimeout(()=>{if(S){charts();topo();liveCharts()}},150)});
+let startView=location.hash.replace(/^#\/?/,"");if(!startView){try{startView=localStorage.getItem("ncc.view")||""}catch(e){}}
+setView(startView||"overview");
+load();setInterval(()=>{if(!document.hidden)load()},30000);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)liveStop();else{load();liveStart()}});
+liveStart();
+</script>
+</body>
+</html>

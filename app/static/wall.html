@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NCC · Display</title>
+<link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="#05090d">
+<style>
+:root{
+  --bg:#05090d; --panel:#0b131b; --line:#163042; --line2:#1f4359;
+  --ink:#e3f1f6; --ink2:#9db6c3; --muted:#5f7a88;
+  --cyan:#3fd0e6; --blue:#3987e5;
+  --good:#0ca30c; --good-ink:#3ad13a; --warn:#fab219; --crit:#d03b3b; --crit-ink:#ff6b6b;
+  --mono:ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
+  /* one unit that scales with the screen, so a TV and a laptop look the same */
+  --u:min(1vw,1.78vh);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+  font:calc(var(--u)*1.5)/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+body.idle{cursor:none}
+#wall{position:absolute;inset:0;padding:calc(var(--u)*1.8) calc(var(--u)*2.4);display:grid;gap:calc(var(--u)*1.3);
+  grid-template-columns:1.25fr 1fr 1fr 1fr;grid-template-rows:auto 1.15fr .95fr 1.7fr auto;
+  grid-template-areas:"hd hd hd hd" "hero hero dev dev" "ads net gw spd" "feed feed list list" "ft ft ft ft";
+  transition:transform 2s ease;
+  background:radial-gradient(ellipse at 20% 0%,rgba(63,208,230,.07),transparent 55%),radial-gradient(ellipse at 100% 100%,rgba(57,135,229,.06),transparent 50%)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:calc(var(--u)*1.2);padding:calc(var(--u)*1.3) calc(var(--u)*1.7);
+  min-height:0;min-width:0;overflow:hidden;position:relative}
+.lbl{font:600 calc(var(--u)*1.05) var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.big{font:600 calc(var(--u)*4.2)/1 var(--mono);letter-spacing:-.02em;margin-top:calc(var(--u)*.9);white-space:nowrap}
+.big small{font-size:.38em;color:var(--ink2);font-weight:500;letter-spacing:0;margin-left:.25em}
+.sub{color:var(--ink2);margin-top:calc(var(--u)*.7);font-size:calc(var(--u)*1.25);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#net .sub{max-width:55%}
+
+/* top bar: name on the left, clock in the middle, date on the right */
+header{grid-area:hd;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:calc(var(--u)*2);
+  padding:calc(var(--u)*.9) calc(var(--u)*2.2);background:var(--panel);border:1px solid var(--line);border-radius:calc(var(--u)*1.2)}
+.brand{font:600 calc(var(--u)*1.3) var(--mono);letter-spacing:.32em;color:var(--cyan);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand img{width:calc(var(--u)*2.6);height:calc(var(--u)*2.6);border-radius:calc(var(--u)*.6);vertical-align:middle;margin-right:calc(var(--u)*1)}
+#clk{font:600 calc(var(--u)*3.4)/1 var(--mono);letter-spacing:.12em;text-align:center;white-space:nowrap}
+#date{justify-self:end;text-align:right;font:500 calc(var(--u)*1.35) var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+
+/* status hero */
+#hero{grid-area:hero;display:flex;align-items:center;gap:calc(var(--u)*3);padding-left:calc(var(--u)*3)}
+.ring{flex:none;width:calc(var(--u)*10.5);height:calc(var(--u)*10.5);border-radius:50%;display:grid;place-items:center;position:relative;
+  border:calc(var(--u)*.5) solid var(--st);box-shadow:0 0 calc(var(--u)*3) color-mix(in srgb,var(--st) 45%,transparent),inset 0 0 calc(var(--u)*2.5) color-mix(in srgb,var(--st) 30%,transparent)}
+.ring::after{content:"";position:absolute;inset:calc(var(--u)*-1.6);border-radius:50%;border:1px solid color-mix(in srgb,var(--st) 45%,transparent);animation:pulse 3s ease-out infinite}
+@keyframes pulse{from{transform:scale(.88);opacity:1}to{transform:scale(1.12);opacity:0}}
+.ring svg{width:46%;height:46%;stroke:var(--st);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#hero{--st:var(--good)}
+#hero.down{--st:var(--crit)} #hero.warn{--st:var(--warn)} #hero.unk{--st:var(--muted)}
+#st-word{font:700 calc(var(--u)*5.2)/1 var(--mono);letter-spacing:.06em;color:var(--good-ink)}
+#hero.down #st-word{color:var(--crit-ink)} #hero.warn #st-word{color:var(--warn)} #hero.unk #st-word{color:var(--ink2)}
+#st-line{font-size:calc(var(--u)*1.7);color:var(--ink);margin-top:calc(var(--u)*1)}
+#st-line2{font-size:calc(var(--u)*1.4);color:var(--ink2);margin-top:calc(var(--u)*.5)}
+
+/* devices online */
+#dev{grid-area:dev;display:flex;flex-direction:column}
+#dev .big{font-size:calc(var(--u)*6.6)}
+.bar{display:flex;gap:2px;height:calc(var(--u)*.9);flex:none;margin-top:auto;margin-bottom:calc(var(--u)*.3);border-radius:calc(var(--u)*.4);overflow:hidden}
+.bar i{display:block;height:100%}
+.dev-top{display:flex;align-items:center;gap:calc(var(--u)*2.5)}
+.leg{display:grid;grid-template-columns:auto auto;gap:calc(var(--u)*.35) calc(var(--u)*1.8);margin:calc(var(--u)*.9) 0 0 auto;color:var(--ink2);font-size:calc(var(--u)*1.15);white-space:nowrap}
+.leg b{color:var(--ink);font-family:var(--mono);font-weight:600}
+.sw{display:inline-block;width:.8em;height:.8em;border-radius:2px;margin-right:.4em;vertical-align:-.05em}
+
+#ads{grid-area:ads} #net{grid-area:net} #gw{grid-area:gw} #spd{grid-area:spd}
+#net svg{position:absolute;right:0;bottom:0;width:48%;height:58%;opacity:.85}
+#net>div{position:relative;z-index:1}
+.good{color:var(--good-ink)} .bad{color:var(--crit-ink)} .meh{color:var(--warn)}
+
+/* blocked feed */
+#feed{grid-area:feed;display:flex;flex-direction:column}
+#feed ul{list-style:none;margin:calc(var(--u)*1) 0 0;padding:0;display:flex;flex-direction:column;gap:calc(var(--u)*.55);flex:1;min-height:0;overflow:hidden}
+#feed li{display:flex;gap:calc(var(--u)*1.2);align-items:baseline;font-size:calc(var(--u)*1.3);animation:in .6s ease}
+#feed li .d{font-family:var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#feed li .d::before{content:"⊘ ";color:var(--crit-ink)}
+#feed li .c{color:var(--ink2);font-size:.85em;white-space:nowrap;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+@keyframes in{from{opacity:0;transform:translateY(-.6em)}to{opacity:1;transform:none}}
+
+/* online list */
+#list{grid-area:list;display:flex;flex-direction:column}
+#chips{display:flex;flex-wrap:wrap;align-content:flex-start;gap:calc(var(--u)*.7);margin-top:calc(var(--u)*1);flex:1;min-height:0;overflow:hidden}
+.chip{border:1px solid var(--line2);background:rgba(63,208,230,.05);border-radius:999px;padding:calc(var(--u)*.35) calc(var(--u)*1.05);
+  font-size:calc(var(--u)*1.15);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.chip .sw{width:.6em;height:.6em;border-radius:50%}
+.chip.blk{border-color:var(--crit);color:var(--crit-ink)}
+
+footer{grid-area:ft;display:flex;gap:calc(var(--u)*2.4);flex-wrap:wrap;font:calc(var(--u)*1.15) var(--mono);color:var(--muted)}
+footer b{color:var(--ink2);font-weight:500}
+footer .r{margin-left:auto}
+
+#gone{position:absolute;inset:0;display:none;place-items:center;background:rgba(5,9,13,.86);z-index:5;text-align:center}
+#gone.on{display:grid}
+#gone h2{font:700 calc(var(--u)*4) var(--mono);color:var(--warn);margin:0 0 calc(var(--u)*1)}
+#gone p{font-size:calc(var(--u)*1.8);color:var(--ink2);margin:0}
+#hint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--u)*1);font:calc(var(--u)*1.1) var(--mono);color:var(--muted);
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5em .9em;transition:opacity .6s;z-index:4}
+body.idle #hint{opacity:0}
+#hint a{color:var(--cyan)}
+
+/* portrait screens and phones: stack everything */
+@media (max-aspect-ratio:1/1){
+  html,body{overflow:auto}
+  :root{--u:max(2.2vw,6px)}
+  #wall{position:static;min-height:100%;grid-template-columns:1fr 1fr;grid-template-rows:none;
+    grid-template-areas:"hd hd" "hero hero" "dev dev" "ads net" "gw spd" "feed feed" "list list" "ft ft";padding:16px}
+  header{grid-template-columns:1fr;justify-items:center;gap:calc(var(--u)*1)} #date{justify-self:center}
+  #hero{flex-direction:column;text-align:center} .dev-top{flex-wrap:wrap} .leg{margin-left:0}
+  #feed ul{max-height:22em} #chips{max-height:24em}
+}
+@media (prefers-reduced-motion:reduce){.ring::after,#feed li{animation:none}#wall{transition:none}}
+</style>
+</head>
+<body>
+<div id="wall">
+  <header>
+    <div class="brand"><img src="/apple-touch-icon.png" alt="">Network Command Center</div>
+    <div id="clk">--:--</div>
+    <div id="date"></div>
+  </header>
+
+  <section class="card" id="hero" aria-live="polite">
+    <div class="ring" aria-hidden="true"><svg viewBox="0 0 24 24" id="st-icon"></svg></div>
+    <div>
+      <div class="lbl">Internet</div>
+      <div id="st-word">…</div>
+      <div id="st-line">Checking…</div>
+      <div id="st-line2"></div>
+    </div>
+  </section>
+
+  <section class="card" id="dev">
+    <div class="lbl">Devices online</div>
+    <div class="dev-top"><div class="big" id="dev-n">—</div><div class="leg" id="dev-leg"></div></div>
+    <div class="bar" id="dev-bar"></div>
+  </section>
+
+  <section class="card" id="ads">
+    <div class="lbl">Ads &amp; trackers blocked</div>
+    <div class="big" id="ads-n">—</div>
+    <div class="sub" id="ads-sub">last 24 hours</div>
+  </section>
+
+  <section class="card" id="net">
+    <div class="lbl">Download right now</div>
+    <div class="big" id="net-n">—</div>
+    <div class="sub" id="net-sub">&nbsp;</div>
+    <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fd0e6" stop-opacity=".35"/><stop offset="1" stop-color="#3fd0e6" stop-opacity="0"/></linearGradient></defs>
+      <path id="spark-a" fill="url(#g)"/><path id="spark-l" fill="none" stroke="#3fd0e6" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    </svg>
+  </section>
+
+  <section class="card" id="gw">
+    <div class="lbl">Wi-Fi to gateway</div>
+    <div class="big" id="gw-n">—</div>
+    <div class="sub" id="gw-sub">&nbsp;</div>
+  </section>
+
+  <section class="card" id="spd">
+    <div class="lbl">Last speed test</div>
+    <div class="big" id="spd-n">—</div>
+    <div class="sub" id="spd-sub">&nbsp;</div>
+  </section>
+
+  <section class="card" id="feed">
+    <div class="lbl">Blocked just now</div>
+    <ul id="feed-ul"><li><span class="d" style="color:var(--muted)">Waiting for lookups…</span></li></ul>
+  </section>
+
+  <section class="card" id="list">
+    <div class="lbl" id="list-lbl">Who's online</div>
+    <div id="chips"></div>
+  </section>
+
+  <footer>
+    <span>Pi-hole <b id="f-ph">—</b></span>
+    <span>Uptime 7 d <b id="f-up">—</b></span>
+    <span>Laptop <b id="f-sys">—</b></span>
+    <span class="r">Updated <b id="f-upd">—</b></span>
+  </footer>
+</div>
+<div id="gone"><div><h2>Can't reach the laptop</h2><p id="gone-p">Retrying…</p></div></div>
+<div id="hint">Display mode · <span id="hint-k">press <b>F</b> for full screen</span> · <a href="/" target="_top" id="back">back to dashboard</a></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtN=n=>n==null?"—":Number(n).toLocaleString();
+const mbps=b=>b==null?null:b/1e6;
+const fmtMb=b=>{const m=mbps(b);return m==null?"—":m<10?m.toFixed(1):m.toFixed(0)};
+const ago=s=>{s=Math.max(0,Math.round(s));if(s<90)return"just now";const m=Math.round(s/60);if(m<90)return m+" min";const h=s/3600;
+  if(h<48)return(h<10?h.toFixed(1):Math.round(h))+" hours";return Math.round(h/24)+" days"};
+const ICON={ok:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',down:'<path d="M6 6l12 12M18 6L6 18"/>',warn:'<path d="M12 7v6M12 17h.01"/>',unk:'<path d="M12 8v4M12 16h.01"/>'};
+// fixed categorical order (never cycled): phones, computers, TVs/media, smart home, everything else
+const KINDS=[["Phones & watches",/phone|watch|tablet/,"#3fd0e6"],["Computers",/computer|laptop|pc|printer/,"#3987e5"],
+  ["TV & media",/tv|media|console|speaker/,"#a77bdb"],["Smart home",/iot|smart|camera|plug|home/,"#2fbf9f"],["Other",/./,"#5f7a88"]];
+const kindOf=d=>{const k=(d.dtype||d.kind||"").toLowerCase();const i=KINDS.findIndex(([,re])=>re.test(k));return i<0?4:i};
+
+let S=null,DEV=null,OUT=null,SPD=null,lastOk=Date.now(),RX=[];
+
+function clock(){const d=new Date();$("#clk").textContent=d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+  $("#date").textContent=d.toLocaleDateString([], {weekday:"long",month:"long",day:"numeric"})}
+
+async function get(u){const r=await fetch(u,{cache:"no-store"});if(r.status===401){location.replace("/");throw 0}if(!r.ok)throw r.status;return r.json()}
+
+function hero(){
+  const h=$("#hero");if(!S)return;const l=S.last||{},ph=S.pihole||{};
+  let cls="",word="ONLINE",line="",line2="";
+  if(l.internet==null){cls="unk";word="CHECKING"}
+  else if(!l.internet){cls="down";word="OFFLINE";
+    line=l.down_since?`Down for ${ago(Date.now()/1000-l.down_since)}`:"Internet isn't responding";
+    line2=l.gw&&!l.gw.ok?"The Wi-Fi can't reach the router.":"The gateway is up, but the internet past it isn't."}
+  else{
+    const last=OUT&&OUT.outages&&OUT.outages[0];
+    line=last?`Up for ${ago(Date.now()/1000-last.end)}`:"Up and running";
+    const u=S.uptime&&S.uptime["24h"];line2=u?`${u.internet}% online in the last 24 hours`:"";
+    if(ph.configured&&!ph.ok){cls="warn";line2="Pi-hole is off: ads aren't being blocked"}}
+  h.className="card "+cls;$("#st-word").textContent=word;$("#st-line").textContent=line;$("#st-line2").textContent=line2;
+  $("#st-icon").innerHTML=ICON[cls==="down"?"down":cls==="warn"?"warn":cls==="unk"?"unk":"ok"];
+}
+
+function tiles(){
+  if(!S)return;const ph=S.pihole||{},l=S.last||{},bb=(S.gateway||{}).broadband||{};
+  if(ph.configured&&ph.ok){$("#ads-n").innerHTML=fmtN(ph.blocked);
+    $("#ads-sub").textContent=`${Number(ph.pct||0).toFixed(0)}% of ${fmtN(ph.total)} lookups · last 24 hours`}
+  else{$("#ads-n").innerHTML='<span class="meh">Off</span>';$("#ads-sub").textContent="Pi-hole isn't answering"}
+  const g=l.gw||{};
+  $("#gw-n").innerHTML=g.ok&&g.ms!=null?`<span class="${g.ms<15?"good":g.ms<50?"meh":"bad"}">${g.ms.toFixed(0)}</span><small>ms</small>`:'<span class="bad">No reply</span>';
+  $("#gw-sub").textContent=g.ok?(g.ms<15?"Strong connection":g.ms<50?"A little slow":"Slow: weak signal?"):"Can't reach the gateway";
+  $("#f-ph").textContent=!ph.configured?"not set up":ph.ok?(ph.blocking==="enabled"?"blocking":"paused"):"off";
+  const u7=S.uptime&&S.uptime["7d"];$("#f-up").textContent=u7?u7.internet+"%":"—";
+  const sy=l.sys||{};$("#f-sys").textContent=[sy.temp!=null?(sy.temp*9/5+32).toFixed(0)+" °F":null,sy.cpu!=null?"CPU "+sy.cpu.toFixed(0)+"%":null,
+    sy.battery&&sy.battery.pct!=null?"battery "+sy.battery.pct+"%":null].filter(Boolean).join(" · ")||"—";
+  if(bb.rx_bps!=null&&!RX.length)net(bb.rx_bps,bb.tx_bps);
+}
+
+function devices(){
+  if(!DEV)return;const blk=new Set(Object.keys(DEV.blocked||{}).map(m=>m.toLowerCase()));
+  const on=DEV.devices.filter(d=>d.active&&d.kind!=="gateway");
+  $("#dev-n").textContent=on.length;
+  const cnt=KINDS.map(()=>0);on.forEach(d=>cnt[kindOf(d)]++);
+  $("#dev-bar").innerHTML=cnt.map((c,i)=>c?`<i style="flex:${c};background:${KINDS[i][2]}"></i>`:"").join("");
+  $("#dev-leg").innerHTML=cnt.map((c,i)=>c?`<span><i class="sw" style="background:${KINDS[i][2]}"></i>${KINDS[i][0]} <b>${c}</b></span>`:"").join("");
+  const nm=d=>d.label||d.name&&d.name!=="*"&&!/^unknown/i.test(d.name)&&d.name||d.maker||d.vendor||d.ip;
+  on.sort((a,b)=>kindOf(a)-kindOf(b)||String(nm(a)).localeCompare(nm(b)));
+  $("#chips").innerHTML=on.map(d=>{const b=blk.has(d.mac);return`<span class="chip${b?" blk":""}"><i class="sw" style="background:${KINDS[kindOf(d)][2]}"></i>${esc(nm(d))}${b?" · blocked":""}</span>`}).join("");
+  fitChips();
+}
+// if the names don't fit, drop the last ones and say how many more there are
+function fitChips(){const box=$("#chips");const cs=[...box.children];cs.forEach(c=>c.style.display="");
+  let hidden=0;while(box.scrollHeight>box.clientHeight+2&&cs.length-hidden>1){hidden++;cs[cs.length-hidden].style.display="none"}
+  if(hidden){hidden++;cs[cs.length-hidden].style.display="none";const m=document.createElement("span");m.className="chip";m.style.color="var(--muted)";
+    m.textContent=`+${hidden} more`;box.appendChild(m)}}
+
+function speed(){
+  const t=SPD&&SPD.tests&&SPD.tests[SPD.tests.length-1];
+  if(!t){$("#spd-n").textContent="—";$("#spd-sub").textContent="No test yet";return}
+  $("#spd-n").innerHTML=`${Math.round(t.down_mbps)}<small>↓ Mbps</small>`;
+  $("#spd-sub").textContent=`${Math.round(t.up_mbps)} up · ${Math.round(t.ping_ms)} ms · ${ago(Date.now()/1000-t.ts).replace(" hours"," h").replace(" days"," d")} ago`;
+}
+
+function net(rx,tx){
+  if(rx==null)return;RX.push(rx);if(RX.length>180)RX.shift();
+  $("#net-n").innerHTML=`${fmtMb(rx)}<small>Mbps</small>`;
+  $("#net-sub").textContent=tx!=null?`${fmtMb(tx)} Mbps up`:"";
+  if(RX.length<2)return;const mx=Math.max(...RX,1e6),n=RX.length;
+  const pts=RX.map((v,i)=>[i/(n-1)*300,98-v/mx*88]);const d="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join("L");
+  $("#spark-l").setAttribute("d",d);$("#spark-a").setAttribute("d",d+"L300,100L0,100Z");
+}
+
+const SEEN=new Set();
+function feed(qs){
+  const ul=$("#feed-ul");const fresh=(qs||[]).filter(q=>q.blocked).sort((a,b)=>a.t-b.t);
+  let added=0;
+  for(const q of fresh){const k=q.t+q.domain;if(SEEN.has(k))continue;SEEN.add(k);added++;
+    if(ul.firstElementChild&&!ul.firstElementChild.dataset.k)ul.innerHTML="";
+    const li=document.createElement("li");li.dataset.k=k;
+    li.innerHTML=`<span class="d">${esc(q.domain)}</span><span class="c">${esc(devName(q.client))}</span>`;ul.prepend(li)}
+  while(ul.children.length>14)ul.lastElementChild.remove();
+  if(SEEN.size>3000)SEEN.clear();
+}
+// Pi-hole reports clients as hostnames; show the name the user gave that device when we know it
+function devName(c){if(!DEV||!c)return c||"";const h=String(c).replace(/\.(lan|attlocal\.net|local)$/,"").toLowerCase();
+  const d=DEV.devices.find(x=>x.ip===c||(x.name&&x.name.toLowerCase()===h));return d&&d.label||h}
+
+async function slow(){
+  try{[S,DEV]=await Promise.all([get("/api/status"),get("/api/devices")]);ok()}catch(e){fail()}
+  hero();tiles();devices();
+}
+async function rare(){try{[OUT,SPD]=await Promise.all([get("/api/outages"),get("/api/speedtest")]);speed();hero()}catch(e){}}
+function ok(){lastOk=Date.now();$("#gone").classList.remove("on");$("#f-upd").textContent=new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit",second:"2-digit"})}
+function fail(){if(Date.now()-lastOk>45000){$("#gone").classList.add("on");
+  $("#gone-p").textContent=`No data for ${ago((Date.now()-lastOk)/1000)}. The laptop may be off or asleep. The Wi-Fi itself keeps working.`}}
+
+let ES=null;
+function live(){ES=new EventSource("/api/live");
+  ES.onmessage=e=>{const f=JSON.parse(e.data);ok();
+    if(f.wan)net(f.wan.rx_bps,f.wan.tx_bps);
+    if(S){S.last.gw={...S.last.gw,ok:f.gw_ok,ms:f.gw_ms};Object.assign(S.last.sys||{},{cpu:f.cpu,temp:f.temp??(S.last.sys||{}).temp});
+      if(f.pihole&&f.pihole.ok)Object.assign(S.pihole,{total:f.pihole.total,blocked:f.pihole.blocked,pct:f.pihole.pct,blocking:f.pihole.blocking,ok:true});tiles()}
+    if(f.pihole)feed(f.pihole.queries)};
+  ES.addEventListener("signout",()=>{ES.close();location.replace("/")});
+  ES.onerror=()=>{fail();fetch("/api/remote",{cache:"no-store"}).then(r=>{if(r.status===401)location.replace("/")}).catch(()=>{})}}
+
+// burn-in guard: nudge the whole screen a few pixels every 3 minutes
+const SHIFT=[[0,0],[4,3],[-3,5],[5,-4],[-4,-3],[2,-5]];let si=0;
+setInterval(()=>{si=(si+1)%SHIFT.length;$("#wall").style.transform=`translate(${SHIFT[si][0]}px,${SHIFT[si][1]}px)`},180000);
+
+let idleT;function wake(){document.body.classList.remove("idle");clearTimeout(idleT);idleT=setTimeout(()=>document.body.classList.add("idle"),4000)}
+["mousemove","keydown","touchstart"].forEach(e=>addEventListener(e,wake,{passive:true}));wake();
+// full screen. Opened from the dashboard's Display mode button, this page runs inside a full-screen frame there,
+// so F / Esc / "back" ask the dashboard to close it. Opened directly, browsers only allow full screen after a
+// click or key press, so the first one switches it on.
+const FRAMED=window.top!==window;
+const leave=()=>parent.postMessage({ncc:"display-exit"},location.origin);
+function goFS(){if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{})}
+if(FRAMED){$("#hint-k").innerHTML="press <b>Esc</b> or <b>F</b> to leave";$("#back").onclick=e=>{e.preventDefault();leave()}}
+else{goFS();const once=()=>{goFS();removeEventListener("click",once);removeEventListener("keydown",once)};
+  addEventListener("click",once);addEventListener("keydown",once)}
+addEventListener("keydown",e=>{if(e.key==="f"||e.key==="F"||(FRAMED&&e.key==="Escape")){
+  if(FRAMED)leave();else document.fullscreenElement?document.exitFullscreen():goFS()}});
+addEventListener("dblclick",()=>{if(!FRAMED)goFS()});
+addEventListener("resize",()=>fitChips());
+// keep a TV from going to sleep while this page is showing (where the browser supports it)
+async function stayAwake(){try{if(navigator.wakeLock&&document.visibilityState==="visible")await navigator.wakeLock.request("screen")}catch(e){}}
+document.addEventListener("visibilitychange",stayAwake);stayAwake();
+
+clock();setInterval(clock,1000);
+slow();rare();live();setInterval(slow,30000);setInterval(rare,600000);
+// reload once a day so a page left open for weeks picks up dashboard updates
+setTimeout(()=>location.reload(),86400000);
+</script>
+</body>
+</html>

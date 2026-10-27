@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NCC · Sign in</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NCC">
+<meta name="theme-color" content="#05090d">
+<style>
+:root{--bg:#05090d;--panel:#0b141c;--line:#1d3342;--txt:#d7e6ef;--mut:#7d97a8;--cyan:#3fd0e6;--crit:#ff5c5c}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--txt);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+.card{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 22px;text-align:center}
+img{width:72px;height:72px;border-radius:16px}
+h1{font:600 13px ui-monospace,monospace;letter-spacing:.2em;color:var(--cyan);margin:14px 0 4px}
+p{color:var(--mut);margin:0 0 18px;font-size:14px}
+input{width:100%;font:600 26px ui-monospace,monospace;letter-spacing:.35em;text-align:center;padding:12px;border-radius:10px;
+  border:1px solid var(--line);background:#060d13;color:var(--txt);outline:none}
+input:focus{border-color:var(--cyan)}
+input.txt{font:500 17px system-ui,sans-serif;letter-spacing:0;text-align:left;margin-bottom:10px}
+button{margin-top:14px;width:100%;padding:13px;border-radius:10px;border:1px solid var(--cyan);background:rgba(63,208,230,.12);
+  color:var(--cyan);font:600 15px system-ui,sans-serif;cursor:pointer}
+button:disabled{opacity:.5}
+.sm{font-size:13px;margin:10px 0 0}.sm a{color:var(--cyan)}
+#msg{min-height:22px;margin-top:12px;color:var(--crit);font-size:14px}
+</style>
+</head>
+<body>
+<form class="card" id="f">
+  <img src="/apple-touch-icon.png" alt="">
+  <h1>NETWORK COMMAND CENTER</h1>
+  <p id="lead">__LEAD__</p>
+  <div id="pin-f"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]*" maxlength="12" autofocus aria-label="PIN"></div>
+  <div id="web-f" hidden>
+    <input id="user" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="Username" aria-label="Username">
+    <input id="pw" class="txt" type="password" autocomplete="current-password" maxlength="128" placeholder="Password" aria-label="Password">
+  </div>
+  <div id="code-f" hidden>
+    <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" aria-label="6-digit code">
+    <p class="sm"><a href="#" id="resend">Send a new code</a> · <a href="#" id="restart">Start over</a></p>
+  </div>
+  <button id="go">Unlock</button>
+  <div id="msg" role="alert"></div>
+</form>
+<script>
+const TOKEN="__CSRF__",MODE="__MODE__";  // pin = Tailscale device, web = open web (username + password), off = web access off
+const $=id=>document.getElementById(id);
+if(MODE!=="pin"){$("pin-f").hidden=true;$("pin").removeAttribute("autofocus")}
+if(MODE==="web"){$("web-f").hidden=false;$("lead").textContent="Sign in with your username and password";$("user").focus()}
+if(MODE==="blocked"){$("go").hidden=true}
+if(MODE==="off"){$("lead").textContent="Web access is turned off. It can be turned on from the laptop or a Tailscale device (Security tab).";$("go").hidden=true}
+let PENDING=null;  // web sign-in, step 2: the code emailed after a correct password
+// Remember step 2 for its 10 minutes: a home-screen app often reloads while you go to Mail for the code.
+const SAVE="ncc-pending",save=v=>{try{v?localStorage.setItem(SAVE,JSON.stringify(v)):localStorage.removeItem(SAVE)}catch{}};
+const post=(u,body)=>fetch(u,{method:"POST",headers:{"Content-Type":"application/json","X-NCC-Token":TOKEN},body:JSON.stringify(body)}).then(r=>r.json());
+const sentTo=to=>"We emailed a 6-digit code to "+to.join(" and ")+". Enter it here. It expires in 10 minutes (check Junk if it's not there).";
+function codeStep(to){$("web-f").hidden=true;$("code-f").hidden=false;$("lead").textContent=sentTo(to);$("go").textContent="Verify";$("code").value="";$("code").focus()}
+$("f").addEventListener("submit",async e=>{
+  e.preventDefault();if(MODE==="off")return;const b=$("go"),m=$("msg");b.disabled=true;m.textContent="";
+  try{
+    const j=MODE!=="web"?await post("/api/remote/login",{pin:$("pin").value})
+      :PENDING?await post("/api/web/login/code",{pending:PENDING,code:$("code").value})
+      :await post("/api/web/login",{user:$("user").value,password:$("pw").value});
+    if(j.ok){save(null);location.replace("/");return}
+    if(j.step==="code"){PENDING=j.pending;save({pending:j.pending,to:j.to,exp:Date.now()+590e3});codeStep(j.to);b.disabled=false;return}
+    m.textContent=j.error||"Couldn't sign in.";
+    if(PENDING&&/expired|again/i.test(j.error||"")){save(null);location.reload()}
+  }catch{m.textContent=MODE==="web"?"Can't reach the laptop. It may be off.":"Can't reach the laptop. Is Tailscale on?"}
+  b.disabled=false;(MODE!=="web"?$("pin"):PENDING?$("code"):$("pw")).select();
+});
+$("resend").onclick=async e=>{e.preventDefault();const j=await post("/api/web/login/resend",{pending:PENDING}).catch(()=>({error:"Can't reach the laptop."}));
+  $("msg").textContent=j.error||"";if(j.ok)$("lead").textContent="New code sent. "+sentTo(j.to)};
+$("restart").onclick=e=>{e.preventDefault();save(null);location.reload()};
+if(MODE==="web"){let p=null;try{p=JSON.parse(localStorage.getItem(SAVE)||"null")}catch{}
+  if(p&&p.pending&&p.exp>Date.now()){PENDING=p.pending;codeStep(p.to||[]);$("lead").textContent="Enter the 6-digit code we emailed to "+(p.to||[]).join(" and ")+"."}else save(null)}
+</script>
+</body>
+</html>

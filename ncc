@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Network Command Center control script.  Usage: ./ncc {start|stop|restart|status|logs|open|test|backup|restore <file>|update|uninstall}
+set -euo pipefail
+DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+UNIT=ncc.service
+UNIT_FILE="$HOME/.config/systemd/user/$UNIT"
+PORT=$(grep -E '^PORT=' "$DIR/config/ncc.env" | cut -d= -f2); PORT=${PORT:-8088}
+URL="http://127.0.0.1:$PORT"
+
+install_unit() {
+  mkdir -p "$(dirname "$UNIT_FILE")"
+  cat > "$UNIT_FILE" <<UNITEOF
+[Unit]
+Description=Network Command Center dashboard
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I $DIR/app/ncc.py
+WorkingDirectory=$DIR
+Restart=on-failure
+RestartSec=10
+MemoryHigh=96M
+MemoryMax=160M
+CPUQuota=25%
+Nice=10
+NoNewPrivileges=yes
+Environment=MALLOC_ARENA_MAX=2
+
+[Install]
+WantedBy=default.target
+UNITEOF
+  systemctl --user daemon-reload
+}
+
+case "${1:-status}" in
+  start)   install_unit; systemctl --user enable --now $UNIT; sleep 2; echo "Dashboard: $URL" ;;
+  stop)    systemctl --user stop $UNIT ;;
+  restart) install_unit; systemctl --user restart $UNIT; echo "Dashboard: $URL" ;;
+  status)  systemctl --user --no-pager status $UNIT | head -12 || true
+           echo; curl -s -m5 "$URL/api/health" && echo || echo "health endpoint not responding" ;;
+  logs)    journalctl --user -u $UNIT -n "${2:-100}" --no-pager ;;
+  follow)  journalctl --user -u $UNIT -f ;;
+  open)    xdg-open "$URL" >/dev/null 2>&1 & ;;
+  test)    python3 -I -m py_compile "$DIR/app/ncc.py" && echo "syntax OK"
+           curl -sf -m5 "$URL/api/health" >/dev/null && echo "health OK" || { echo "health FAIL"; exit 1; }
+           curl -sf -m10 "$URL/" | grep -c "Network Command Center" >/dev/null && echo "UI OK" || { echo "UI FAIL"; exit 1; } ;;
+  backup)  mkdir -p "$DIR/backups"; f="$DIR/backups/ncc-$(date +%Y%m%d-%H%M%S).tar.gz"
+           [ -f "$DIR/data/ncc.db" ] && python3 -I -c "import sqlite3,sys;s=sqlite3.connect(sys.argv[1]);d=sqlite3.connect(sys.argv[2]);s.backup(d)" "$DIR/data/ncc.db" "$DIR/data/ncc-backup.db"
+           tar -czf "$f" --exclude='*.pre-*' --exclude='__pycache__' -C "$DIR" app config ncc README.md $( [ -f "$DIR/data/ncc-backup.db" ] && echo data/ncc-backup.db ) \
+               $(cd "$DIR" && ls data/.ntfy data/.alert_email data/.web_logins data/.remote_pin data/.blocked_devices 2>/dev/null) \
+               -C "$HOME" .config/ncc .config/systemd/user/$UNIT 2>/dev/null || true
+           rm -f "$DIR/data/ncc-backup.db"; chmod 600 "$f"; echo "Backup written: $f (contains secrets.env - keep private)" ;;
+  restore) f="${2:?usage: ncc restore <backup.tar.gz>}"; "$0" backup >/dev/null; echo "Safety backup taken first."
+           systemctl --user stop $UNIT || true
+           tar -xzf "$f" -C "$DIR" --exclude='.config/*' app config ncc README.md 2>/dev/null || true
+           tar -xzf "$f" -C "$DIR" data/ncc-backup.db 2>/dev/null && mv "$DIR/data/ncc-backup.db" "$DIR/data/ncc.db" || true
+           tar -xzf "$f" -C "$HOME" .config/ncc 2>/dev/null || true
+           for x in .ntfy .alert_email .web_logins .remote_pin .blocked_devices; do tar -xzf "$f" -C "$DIR" "data/$x" 2>/dev/null || true; done
+           rm -f "$DIR/data/ncc.db-wal" "$DIR/data/ncc.db-shm"; "$0" restart ;;
+  update)  "$0" backup; python3 -I -m py_compile "$DIR/app/ncc.py" && "$0" restart && sleep 3 && "$0" test ;;
+  uninstall) systemctl --user disable --now $UNIT || true; rm -f "$UNIT_FILE"; systemctl --user daemon-reload
+           echo "Service removed. Project files left in $DIR (delete manually if wanted)." ;;
+  *) echo "usage: $0 {start|stop|restart|status|logs [n]|follow|open|test|backup|restore <file>|update|uninstall}"; exit 1 ;;
+esac
