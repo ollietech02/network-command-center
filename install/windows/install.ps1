@@ -49,6 +49,7 @@ switch ($Pack) {
   'shield' { $Blocker = 'adguard' }
   'everything' { $Blocker = 'adguard'; $Tailscale = $true; $Controls = $true; $Rdp = -not $HomeEd }
   'custom' {
+    Say '  Pictures of each look: https://github.com/ollietech02/network-command-center#looks'
     $Style = Choose 'Which look?' @('scifi|Sci-fi - dark command center with glowing accents', 'hacker|Hacker - black and green terminal', 'clean|Clean - light, simple and friendly')
     $Blocker = Choose 'Ad blocker for your whole home?' @('adguard|AdGuard Home - blocks ads and trackers for every device (Pi-hole needs Linux)', 'none|None')
     Write-Host ''

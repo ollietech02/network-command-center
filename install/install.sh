@@ -54,6 +54,7 @@ case "$PACK" in
   shield) BLOCKER=pihole ;;
   everything) BLOCKER=pihole TAILSCALE=1 CONTROLS=1; has_gnome_rdp && RDP=1 ;;
   custom)
+    say "  Pictures of each look: https://github.com/ollietech02/network-command-center#looks"
     STYLE=$(choose "Which look?" \
       "scifi|Sci-fi - dark command center with glowing accents" \
       "hacker|Hacker - black and green terminal" \

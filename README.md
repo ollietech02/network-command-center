@@ -13,6 +13,16 @@ itself is doing. It sends phone alerts when something breaks.
 - **Three looks:** Sci-fi, Hacker or Clean, plus light/dark and accent colors
 - **Light:** about 50-100 MB of memory, plain Python with no extra libraries
 
+## Looks
+
+Pick one when you install, and change it any time in **Tools & settings**. Each also has light/dark and accent colors.
+(These pictures use made-up example data.)
+
+| Sci-fi | Hacker | Clean |
+|---|---|---|
+| [![Sci-fi look](docs/screenshots/look-scifi.png)](docs/screenshots/look-scifi.png) | [![Hacker look](docs/screenshots/look-hacker.png)](docs/screenshots/look-hacker.png) | [![Clean look](docs/screenshots/look-clean.png)](docs/screenshots/look-clean.png) |
+| Dark command center with glowing accents | Black and green terminal | Light, simple and friendly |
+
 ## Which computers it runs on
 
 | System | Ad blocker | Notes |
