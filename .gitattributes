@@ -1,0 +1,5 @@
+# Windows needs CRLF line endings in batch and PowerShell files
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary

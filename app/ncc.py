@@ -21,6 +21,7 @@ import smtplib
 import sqlite3
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import socket
@@ -39,6 +40,18 @@ BASE = Path(__file__).resolve().parent.parent
 STATIC = BASE / "app" / "static"
 DATA = BASE / "data"
 DATA.mkdir(exist_ok=True)
+WIN = os.name == "nt"
+if WIN:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I leaves the script's own folder off the path
+    import ncc_win as W
+    _ts = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Tailscale"
+    if _ts.is_dir() and str(_ts).lower() not in os.environ.get("PATH", "").lower():
+        os.environ["PATH"] += os.pathsep + str(_ts)  # installed after this sign-in started: not on our PATH yet
+    if sys.stdout is None:  # pythonw (no console): keep a small log file instead
+        _lf = DATA / "ncc.log"
+        if _lf.exists() and _lf.stat().st_size > 2_000_000:
+            _lf.replace(DATA / "ncc.log.1")
+        sys.stdout = sys.stderr = open(_lf, "a", buffering=1, encoding="utf-8")
 
 
 def load_env(path):
@@ -107,6 +120,8 @@ def log(*a):
 
 
 def run(cmd, timeout=10):
+    if WIN:
+        return W.run(cmd, timeout)
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return p.returncode, p.stdout
@@ -445,7 +460,9 @@ def event(level, kind, msg, notify=True):
         if now - _last_notify.get(key, 0) < 900:  # 15-minute rate limit per kind
             return
         _last_notify[key] = now
-        if CFG["DESKTOP_NOTIFY"] == "1" and shutil.which("notify-send"):
+        if CFG["DESKTOP_NOTIFY"] == "1" and WIN:
+            W.notify(f"NCC: {kind}", msg)
+        elif CFG["DESKTOP_NOTIFY"] == "1" and shutil.which("notify-send"):
             run(["notify-send", "-a", "Network Command Center",
                  "-u", "critical" if level == "crit" else "normal", f"NCC: {kind}", msg], 5)
         return send_ntfy(f"NCC: {kind}", msg, level)
@@ -455,12 +472,16 @@ def event(level, kind, msg, notify=True):
 def default_gateway():
     if CFG["GATEWAY"]:
         return CFG["GATEWAY"]
+    if WIN:
+        return W.iface().get("gateway")
     _, out = run(["ip", "route", "show", "default"])
     m = re.search(r"default via (\S+)", out)
     return m.group(1) if m else None
 
 
 def local_iface():
+    if WIN:
+        return {k: v for k, v in W.iface().items() if k in ("dev", "ip", "subnet")}
     _, out = run(["ip", "-j", "route", "show", "default"])
     try:
         r = json.loads(out)[0]
@@ -474,6 +495,8 @@ def local_iface():
 
 
 def ping(host, count=3, timeout=1):
+    if WIN:
+        return W.ping(host, count, timeout)
     code, out = run(["ping", "-n", "-q", "-c", str(count), "-W", str(timeout), "-i", "0.3", host],
                     count * timeout + 5)
     loss = re.search(r"([\d.]+)% packet loss", out)
@@ -495,7 +518,21 @@ def https_check(url):
         return {"ok": False, "ms": None, "err": type(e).__name__}
 
 
+def dig_a(server, name, timeout=2):
+    """A-record answers from one DNS server (list of addresses; empty if none or no reply)."""
+    if WIN or not shutil.which("dig"):
+        return W.dns_a(name, server, timeout)["ips"] if WIN else []
+    _, out = run(["dig", "+short", f"+time={timeout}", "+tries=2", "@" + server, name, "A"], 4 * timeout)
+    return [x for x in out.split() if re.fullmatch(r"[\d.]+", x)]
+
+
 def dns_check(name, server=None):
+    if WIN:
+        server = server or W.system_dns()
+        if not server:
+            return {"ok": False, "ms": None}
+        r = W.dns_a(name, server)
+        return {"ok": r["ok"], "ms": r["ms"]}
     cmd = ["dig", "+time=2", "+tries=1", "+noall", "+answer", "+stats", name]
     if server:
         cmd.insert(1, "@" + server)
@@ -510,9 +547,12 @@ _cpu_prev = {}
 
 
 def cpu_pct(key):
-    with open("/proc/stat") as f:
-        v = list(map(int, f.readline().split()[1:]))
-    idle, total = v[3] + v[4], sum(v)
+    if WIN:
+        idle, total = W.cpu_times()
+    else:
+        with open("/proc/stat") as f:
+            v = list(map(int, f.readline().split()[1:]))
+        idle, total = v[3] + v[4], sum(v)
     cpu, prev = None, _cpu_prev.get(key)
     if prev:
         dt = total - prev[1]
@@ -522,6 +562,8 @@ def cpu_pct(key):
 
 
 def meminfo():
+    if WIN:
+        return W.meminfo()
     mi = {}
     with open("/proc/meminfo") as f:
         for line in f:
@@ -531,6 +573,8 @@ def meminfo():
 
 
 def cpu_temp():
+    if WIN:
+        return None  # Windows only shares CPU temperature with admin tools
     for z in Path("/sys/class/thermal").glob("thermal_zone*"):
         try:
             if (z / "type").read_text().strip() == "x86_pkg_temp":
@@ -542,6 +586,8 @@ def cpu_temp():
 
 def net_dev(dev):
     """(rx_bytes, tx_bytes) for one interface from /proc/net/dev."""
+    if WIN:
+        return W.net_dev(dev)
     with open("/proc/net/dev") as f:
         for line in f:
             if line.strip().startswith(dev + ":"):
@@ -550,7 +596,19 @@ def net_dev(dev):
     return None
 
 
+def uptime_s():
+    return W.uptime() if WIN else float(open("/proc/uptime").read().split()[0])
+
+
 def sysmetrics():
+    if WIN:
+        cpu, mi, du = cpu_pct("main"), meminfo(), shutil.disk_usage(os.environ.get("SystemDrive", "C:") + "\\")
+        return {"cpu": cpu, "cores": os.cpu_count(), "load": None, "mem_total": mi["MemTotal"], "mem_avail": mi["MemAvailable"],
+                "mem_pct": round(100 * (1 - mi["MemAvailable"] / mi["MemTotal"]), 1),
+                "swap_total": mi["SwapTotal"], "swap_used": mi["SwapTotal"] - mi["SwapFree"],
+                "disk_total": du.total, "disk_free": du.free, "disk_pct": round(100 * du.used / du.total, 1),
+                "disk_name": os.environ.get("SystemDrive", "C:"), "temp": None, "temps": {}, "battery": W.battery(),
+                "uptime": W.uptime(), "ncc_rss": W.own_rss(), "os": "windows"}
     cpu = cpu_pct("main")
     mi = meminfo()
     st = os.statvfs("/")
@@ -725,10 +783,9 @@ def refresh_devices():
         log("gateway device list failed:", type(e).__name__)
         gdevs, src = [], "neighbor-table-only"
     # merge kernel neighbor table (devices this PC has talked to)
-    _, out = run(["ip", "-j", "neigh", "show"])
     neigh = {}
     try:
-        for n in json.loads(out):
+        for n in (W.neighbors() if WIN else json.loads(run(["ip", "-j", "neigh", "show"])[1])):
             if n.get("lladdr") and ":" not in n.get("dst", ""):
                 mac = n["lladdr"].lower()
                 # a MAC can appear under its old and new address; keep the one that answered most recently
@@ -1235,8 +1292,7 @@ BLOCKED = {}
 def everyone_ok():
     """True if Pi-hole still answers normally for this PC (i.e. the catch-all is not hitting everybody)."""
     host = re.sub(r"^https?://", "", PIHOLE.url).split("/")[0].rsplit(":", 1)[0]
-    _, out = run(["dig", "+short", "+time=2", "+tries=2", "@" + host, CFG["DNS_TEST_NAME"], "A"], 8)
-    ips = [x for x in out.split() if re.fullmatch(r"[\d.]+", x)]
+    ips = dig_a(host, CFG["DNS_TEST_NAME"])
     return bool(ips) and "0.0.0.0" not in ips
 
 
@@ -1701,7 +1757,14 @@ def blocker_setup():
     """Facts for the 'make every device use the ad blocker' guide. Read-only: it never changes the router."""
     iface = local_iface()
     out = {"router": CFG["ROUTER"], "blocker": PIHOLE.name if PIHOLE else None, "lan_ip": iface.get("ip"),
-           "gateway": default_gateway(), "fixed_ip": None, "admin_url": None, "clients": None}
+           "gateway": default_gateway(), "fixed_ip": None, "admin_url": None, "clients": None,
+           "os": "windows" if WIN else "linux",
+           # AdGuard Home's DHCP server doesn't exist on Windows, so the "ad blocker hands out addresses" route is out
+           "dhcp_ok": not (WIN and isinstance(PIHOLE, AdGuardHome))}
+    if WIN:
+        w = W.iface(0)
+        out["fixed_ip"] = (not w["dhcp"]) if w else None
+        out["network_private"] = (w.get("category") or "").lower() in ("private", "domainauthenticated") if w else None
     if PIHOLE:
         out["admin_url"] = PIHOLE.url + ("/admin/" if isinstance(PIHOLE, PiHole) else "/")
         try:
@@ -1781,11 +1844,12 @@ def system_restart(what):
         return {"ok": True, "msg": "Pi-hole restarted. Lookups pause for a few seconds."}
     if what == "dashboard":
         event("info", "restart", "Dashboard restart requested.", False)
-        threading.Timer(1, lambda: subprocess.Popen(["systemctl", "--user", "--no-block", "restart", "ncc.service"])).start()
+        threading.Timer(1, W.restart_self if WIN else
+                        lambda: subprocess.Popen(["systemctl", "--user", "--no-block", "restart", "ncc.service"])).start()
         return {"ok": True, "msg": "Restarting the dashboard. It reloads by itself in about 10 seconds."}
     if what == "laptop":
         event("warn", "restart", "Laptop reboot requested from the dashboard.", False)
-        threading.Timer(2, lambda: subprocess.Popen(["systemctl", "reboot"])).start()
+        threading.Timer(2, W.reboot if WIN else lambda: subprocess.Popen(["systemctl", "reboot"])).start()
         return {"ok": True, "msg": "Rebooting this laptop. Pi-hole and the dashboard are back in about 1-2 minutes."}
     raise ValueError("unknown restart target")
 
@@ -1793,8 +1857,7 @@ def system_restart(what):
 def answers_blocked(domain):
     """Ask Pi-hole directly; its blocking mode answers 0.0.0.0 / :: for blocked names."""
     host = re.sub(r"^https?://", "", PIHOLE.url).split("/")[0].rsplit(":", 1)[0]
-    _, out = run(["dig", "+short", "+time=2", "+tries=1", "@" + host, domain, "A"], 6)
-    return "0.0.0.0" in out.split()
+    return "0.0.0.0" in dig_a(host, domain)
 
 
 def expected_blocked(domain):
@@ -1887,6 +1950,9 @@ def scan_auth_log():
     """Incrementally count failed authentication lines in /var/log/auth.log (readable via adm group)."""
     p = Path("/var/log/auth.log")
     sec = STATE["security"]
+    if WIN:  # the Windows sign-in log (Security) can only be read by an administrator
+        sec["auth"] = {"available": False, "reason": "Windows keeps sign-in failures in a log only administrators can read"}
+        return
     if not os.access(p, os.R_OK):
         sec["auth"] = {"available": False, "reason": "auth.log not readable"}
         return
@@ -1912,8 +1978,11 @@ def scan_auth_log():
 
 
 def scan_listeners():
-    _, out = run(["ss", "-H", "-tln"])
-    cur = sorted({l.split()[3] for l in out.splitlines() if len(l.split()) > 3})
+    if WIN:
+        cur = W.listeners()
+    else:
+        _, out = run(["ss", "-H", "-tln"])
+        cur = sorted({l.split()[3] for l in out.splitlines() if len(l.split()) > 3})
     public = sorted(a for a in cur if not re.match(r"(127\.|\[::1\]|\[::ffff:127\.)", a))
     prev = kv_get("listeners_public")
     if prev is not None:
@@ -1990,7 +2059,7 @@ def collect():
     if not _flags.get("booted") and internet:
         _flags["booted"] = True
         try:
-            up = float(open("/proc/uptime").read().split()[0])
+            up = uptime_s()
         except (OSError, ValueError):
             up = 1e9
         if up < 900:  # announce only real boots, not dashboard restarts
@@ -2503,6 +2572,15 @@ def wifi_neighbors(rescan=False):
         rescan = False  # scanning is slow and briefly busies the Wi-Fi card
     if not _wifi["data"]:
         rescan = True  # the system's cached list can be nearly empty (e.g. only the current band) until a real scan
+    if WIN:
+        nets, note = W.wifi()
+        my_ssid = next((n["ssid"] for n in nets if n["mine"]), None)
+        for n in nets:
+            n["home"] = n["ssid"] == my_ssid or bool(my_ssid and n["ssid"].startswith(my_ssid))
+        nets.sort(key=lambda n: (not n["home"], -n["signal"]))
+        data = {"networks": nets, "ts": int(time.time()), "my_ssid": my_ssid, "note": note}
+        _wifi.update({"ts": time.time(), "data": data})
+        return data
     code, out = run(["nmcli", "-t", "-e", "yes", "-f", "IN-USE,SSID,CHAN,FREQ,SIGNAL,SECURITY", "dev", "wifi", "list",
                      "--rescan", "yes" if rescan else "auto"], 30)
     nets = []
@@ -2667,6 +2745,11 @@ def diagnose():
 
 
 def top_processes(n=5):
+    if WIN:
+        agg = {}
+        for name, kb in W.processes():
+            agg[name] = agg.get(name, 0) + kb
+        return sorted(((k, v // 1024) for k, v in agg.items()), key=lambda x: -x[1])[:n]
     _, out = run(["ps", "-eo", "rss=,comm=", "--sort=-rss"])
     agg = {}
     for line in out.splitlines():
@@ -2712,7 +2795,8 @@ def ask_ai(question):
         if shutil.which("systemd-run"):
             cmd = ["systemd-run", "--user", "--quiet", "--wait", "--pipe", "--collect", "-p", "MemoryMax=400M",
                    "-p", "CPUQuota=60%", f"--working-directory={sandbox}"] + cmd
-        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=120, cwd=sandbox)
+        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=120, cwd=sandbox,
+                           **({"creationflags": W.NO_WINDOW} if WIN else {}))
         return p.stdout.strip() or ("AI error: " + p.stderr.strip()[:300])
     except Exception as e:
         return f"AI unavailable: {type(e).__name__}"
@@ -2773,6 +2857,8 @@ def action(name, arg):
     if name == "trace":
         if not HOST_RX.match(arg):
             raise ValueError("Invalid hostname")
+        if WIN:
+            return {"output": W.trace(arg)[-3000:]}
         exe = shutil.which("tracepath")
         if not exe:
             return {"error": "tracepath not installed"}
@@ -3316,7 +3402,7 @@ def main():
 
     def on_term(*_):
         # systemd reports "stopping" only when the whole computer is shutting down or rebooting
-        _, state = run(["systemctl", "is-system-running"], 3)
+        state = "" if WIN else run(["systemctl", "is-system-running"], 3)[1]
         if "stopping" in state:
             event("warn", "laptop-off", "The laptop is shutting down or restarting. The Wi-Fi keeps working, but ads "
                   "won't be blocked and new devices can't join until it's back.", "phone")

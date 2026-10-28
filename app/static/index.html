@@ -402,6 +402,11 @@ tr.edrow td{background:var(--sunk)}
   <section class="panel c12 vo-ok" data-v="only troubleshoot" id="why-panel"><h2>What's wrong? <span class="sub">the status badge and messages explained</span></h2>
     <div id="why-now"></div>
     <details class="why-ref"><summary>Every message, what it means and what to do</summary><div id="why-ref"></div></details></section>
+  <section class="panel c12 vo-ok" data-v="only troubleshoot"><h2>Found a bug? <span class="sub">tell the people who make the dashboard</span></h2>
+    <p>Something broken, confusing or wrong? Report it on the project's GitHub page: a short form asks what happened and what you expected. You need a free GitHub account.</p>
+    <p><a class="lnk" id="bug-link" href="https://github.com/ollietech02/network-command-center/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report a problem ↗</a>
+      &nbsp; <a class="lnk" href="https://github.com/ollietech02/network-command-center/issues" target="_blank" rel="noopener">See known problems ↗</a></p>
+    <p class="sm muted">The form only fills in the dashboard version and the kind of computer. Before you post, take out passwords, email addresses and anything else private: reports are public.</p></section>
   <section class="panel c4 vo-ok" data-v="only tools" id="set-panel"><h2>Appearance <span class="sub">this browser only</span></h2><div id="set"></div></section>
   <section class="panel c4" data-v="only tools"><h2>Live updates</h2><div id="sb-live"></div></section>
   <section class="panel c4" data-v="only tools"><h2>Speed test</h2><div id="sb-spd"></div></section>
@@ -553,11 +558,11 @@ function sys(){
   const t=s.temp; const tpct=t?Math.min(100,t):0;
   $("#host-sub").textContent="up "+fmtDur(s.uptime);
   $("#sys").innerHTML=
-    m("CPU",s.cpu,(s.cpu??"—")+"% · load "+s.load.join(" "))+
+    m("CPU",s.cpu,(s.cpu??"—")+"%"+(s.load?" · load "+s.load.join(" "):""))+
     m("Memory",s.mem_pct,`${fmtB(s.mem_total-s.mem_avail)} / ${fmtB(s.mem_total)} · ${fmtB(s.mem_avail)} free`)+
     m("Swap",swapPct,`${fmtB(s.swap_used)} / ${fmtB(s.swap_total)}`)+
-    m("Disk /",s.disk_pct,`${fmtB(s.disk_free)} free of ${fmtB(s.disk_total)}`)+
-    (t!=null?`<div class="meter-row"><span>CPU temperature</span><span>${(t*9/5+32).toFixed(0)} °F</span></div><div class="bar"><i class="${t>=90?"crit":t>=80?"warn":""}" style="width:${tpct}%"></i></div>`:`<div class="meter-row"><span>CPU temperature</span><span>not exposed by hardware</span></div>`)+
+    m("Disk "+(s.disk_name||"/"),s.disk_pct,`${fmtB(s.disk_free)} free of ${fmtB(s.disk_total)}`)+
+    (t!=null?`<div class="meter-row"><span>CPU temperature</span><span>${(t*9/5+32).toFixed(0)} °F</span></div><div class="bar"><i class="${t>=90?"crit":t>=80?"warn":""}" style="width:${tpct}%"></i></div>`:`<div class="meter-row"><span>CPU temperature</span><span>${s.os==="windows"?"not shared by Windows":"not exposed by hardware"}</span></div>`)+
     `<dl class="kv">${s.battery?`<dt>Battery</dt><dd>${s.battery.pct}% · ${esc(s.battery.status)}</dd>`:""}
     <dt>Dashboard RAM</dt><dd>${fmtB(s.ncc_rss)}</dd><dt>Check interval</dt><dd>${esc(S.config.interval)} s</dd>
     <dt>Samples (24h)</dt><dd>${S.uptime["24h"].samples}</dd></dl>`;
@@ -742,6 +747,7 @@ const CH24=[1,2,3,4,5,6,7,8,9,10,11];
 async function wifiUI(rescan){
   $("#wf-sub").textContent=rescan?"scanning…":"what this laptop can hear";
   const r=await api("/api/wifi"+(rescan?"?rescan=1":""));const pf=PREF("wifi",{band:"all",min:0,hidden:true});
+  if(r.note&&!(r.networks||[]).length){$("#wf").innerHTML=`<p class="note">${esc(r.note)}</p><p><button id="wf-scan">Scan again</button></p>`;$("#wf-sub").textContent="what this laptop can hear";return}
   const all=r.networks||[];const ns=all.filter(n=>n.home||((pf.band==="all"||n.band===pf.band)&&n.signal>=pf.min&&(pf.hidden||n.ssid!=="(hidden network)")));
   const hiddenN=all.length-ns.length;
   // one row per network name + band (routers show up several times, one per radio)
@@ -1258,13 +1264,17 @@ async function setupGuide(force){
   if(!force&&Date.now()-WH_AT<300000)return;WH_AT=Date.now();
   const g=await api("/api/blocker/setup");$("#wh-sec").classList.toggle("feat-off",!(g&&g.blocker));if(!g||!g.blocker)return;
   const n=esc(g.blocker),ip0=esc(g.lan_ip||"this computer's address"),gw=esc(g.gateway||"your router"),pre=(g.lan_ip||"192.168.1.x").split(".").slice(0,3).join(".");
-  const adg=g.blocker!=="Pi-hole",att=g.router==="att",ip=att&&g.fixed_ip!==true&&g.lan_ip?esc(pre+".2"):ip0,admin=g.admin_url?`<a class="lnk" href="${esc(g.admin_url)}" target="_blank" rel="noopener">${esc(g.admin_url)}</a> (opens only on this computer)`:"its admin page";
+  const adg=g.blocker!=="Pi-hole",win=g.os==="windows",att=g.router==="att",dh=att&&g.dhcp_ok!==false,ip=dh&&g.fixed_ip!==true&&g.lan_ip?esc(pre+".2"):ip0,admin=g.admin_url?`<a class="lnk" href="${esc(g.admin_url)}" target="_blank" rel="noopener">${esc(g.admin_url)}</a> (opens only on this computer)`:"its admin page";
   const st=(ok,t)=>`<li class="${ok?"done":""}">${ok?"✔":"○"} ${t}</li>`;
   const fixed=g.fixed_ip===true?`<b>Done:</b> this computer keeps ${ip0}.`:`This computer's address must never change, or devices lose ${n}.
-    <br>On this computer: <b>Settings → ${att?"Wi-Fi":"Wi-Fi (or Network)"} → ⚙ next to your network → IPv4 → Manual</b>: address <code>${ip}</code>, netmask <code>255.255.255.0</code>, gateway <code>${gw}</code>, DNS <code>1.1.1.1</code> → Apply, then turn Wi-Fi off and on.
-    ${att?`<br><span class="muted">${esc(pre)}.2 is outside the range AT&amp;T hands out (.64-.253), so nothing else will take it. Then run <code>./ncc restart</code>.</span>`:`<br><span class="muted">Or, easier if your router has it: a "DHCP reservation" for this computer in the router's settings.</span>`}`;
+    <br>On this computer: ${win?`<b>Settings → Network &amp; internet → Wi-Fi (or Ethernet) → your network's properties → IP assignment → Edit → Manual</b>, IPv4 on: IP address <code>${ip}</code>, subnet mask <code>255.255.255.0</code>, gateway <code>${gw}</code>, preferred DNS <code>127.0.0.1</code> → Save.`
+      :`<b>Settings → ${att?"Wi-Fi":"Wi-Fi (or Network)"} → ⚙ next to your network → IPv4 → Manual</b>: address <code>${ip}</code>, netmask <code>255.255.255.0</code>, gateway <code>${gw}</code>, DNS <code>1.1.1.1</code> → Apply, then turn Wi-Fi off and on.`}
+    ${dh?`<br><span class="muted">${esc(pre)}.2 is outside the range AT&amp;T hands out (.64-.253), so nothing else will take it. Then run <code>${win?"ncc restart":"./ncc restart"}</code>.</span>`:`<br><span class="muted">Or, easier if your router has it: a "DHCP reservation" for this computer in the router's settings.</span>`}`;
   let how;
-  if(att) how=`${st(false,`<b>Let ${n} hand out addresses.</b> AT&amp;T gateways don't let you change the DNS server, so instead ${n} becomes the one that gives every device its address and tells it to use ${n}.<ol type="a">
+  const pub=win&&g.network_private===false?`<div class="find warn"><span class="ic">!</span><div><b>Windows calls this network "Public"</b><span>On a Public network Windows blocks other devices from using ${n}. If this is your home network: <b>Settings → Network &amp; internet → Wi-Fi (or Ethernet) → your network's properties → Network profile type: Private</b></span></div></div>`:"";
+  if(att&&!dh) how=`${st(false,`<b>Set ${n} as the DNS on each device.</b> AT&amp;T gateways don't let you change the DNS server, and on Windows ${n} can't take over handing out addresses (its DHCP server only exists on Linux and Mac). So point each phone, tablet and computer at <code>${ip}</code> yourself: the steps for each kind of device are on the right.
+      <p class="sm muted">For the whole home at once on an AT&amp;T gateway, install the dashboard with Pi-hole on a Raspberry Pi or a Linux computer instead; the Linux version walks you through it.</p>`)}`;
+  else if(att) how=`${st(false,`<b>Let ${n} hand out addresses.</b> AT&amp;T gateways don't let you change the DNS server, so instead ${n} becomes the one that gives every device its address and tells it to use ${n}.<ol type="a">
       <li>Open ${admin} → ${adg?"<b>Settings → DHCP settings</b>: pick the network card, gateway <code>"+gw+"</code>, range <code>"+esc(pre)+".64</code> to <code>"+esc(pre)+".253</code>, lease <code>604800</code> seconds (7 days) → <b>Enable DHCP server</b>":"<b>Settings → DHCP</b>: turn on <b>DHCP server enabled</b>, range <code>"+esc(pre)+".64</code> to <code>"+esc(pre)+".253</code>, router <code>"+gw+"</code>, lease time <code>7d</code> → <b>Save</b>"}.</li>
       <li><b>Right after</b>, open <code>http://${gw}</code> → <b>Home Network → Subnets &amp; DHCP</b> → <b>DHCPv4 Server: Off</b> → Save. It asks for the <b>Device Access Code</b> printed on the gateway's sticker.</li>
       <li>On each device, turn Wi-Fi off and on (or restart it) so it picks up the new settings.</li></ol>
@@ -1278,9 +1288,10 @@ async function setupGuide(force){
         <li><b>ASUS:</b> LAN → DHCP Server → DNS Server 1</li>
         <li><b>Netgear:</b> Advanced → Setup → Internet Setup → Domain Name Server → Use These DNS Servers</li>
         <li><b>Linksys:</b> Connectivity → Local Network → DHCP Server → Static DNS 1</li>
-        <li><b>Internet-provider gateways that hide DNS</b> (AT&amp;T, many Xfinity and some Spectrum boxes): turn their DHCP off and let ${n} hand out addresses instead (AT&amp;T steps are in the README), or set DNS on each device.</li></ul>
+        <li><b>Internet-provider gateways that hide DNS</b> (AT&amp;T, many Xfinity and some Spectrum boxes): ${g.dhcp_ok===false?"set DNS on each device (see the right), or run "+n+" on a Raspberry Pi or Linux computer that can hand out addresses":"turn their DHCP off and let "+n+" hand out addresses instead (AT&amp;T steps are in the README), or set DNS on each device"}.</li></ul>
         <span class="muted">Menu names change between models; search "&lt;router model&gt; change DNS" if you can't find it.</span></details>`)}
     ${st(false,"On each device, turn Wi-Fi off and on (or restart it) so it picks up the change.")}`;
+  how=pub+how;
   $("#wh").innerHTML=`<div class="cols2"><div><ol class="ra-steps">
       ${st(g.fixed_ip===true,`<b>Give this computer a fixed address.</b> ${fixed}`)}
       ${how}
@@ -1288,7 +1299,7 @@ async function setupGuide(force){
     <div><b>Is it working?</b>
       <p>${g.clients!=null?`<span class="big-code">${Number(g.clients)}</span> device${g.clients==1?"":"s"} used ${n} recently.`:"—"} ${g.clients!=null&&g.clients<=1?`<br><span class="muted">Only this computer so far: finish the steps on the left.</span>`:g.clients>1?`<br><span class="muted">Other devices are using it. 🎉</span>`:""}</p>
       <p><button id="wh-re">Check again</button></p>
-      <p class="sm muted">Just one device instead? Set its DNS by hand to <code>${ip}</code>: <b>iPhone</b> Settings → Wi-Fi → ⓘ → Configure DNS → Manual. <b>Windows</b> Settings → Network → Wi-Fi → your network → DNS server assignment → Edit. <b>Android</b> Wi-Fi → your network → ✎ → Advanced → IP settings: Static.</p></div></div>`;
+      <p class="sm muted">Just one device instead? Set its DNS by hand to <code>${ip}</code>: <b>iPhone</b> Settings → Wi-Fi → ⓘ → Configure DNS → Manual. <b>Windows</b> Settings → Network → Wi-Fi → your network → DNS server assignment → Edit. <b>Android</b> Wi-Fi → your network → ✎ → Advanced → IP settings: Static. <b>Mac</b> System Settings → Wi-Fi → Details → DNS → +.</p></div></div>`;
 }
 document.addEventListener("click",e=>{if(e.target.id==="wh-re")setupGuide(true)});
 window.addEventListener("hashchange",()=>{if(location.hash==="#/pihole"&&S&&S.pihole&&S.pihole.configured)setupGuide().catch(()=>{})});
@@ -1303,7 +1314,7 @@ function pihole(){
   if(p.configured&&location.hash==="#/pihole")setupGuide().catch(()=>{});
   $("#bd-pihole").textContent=p.configured&&p.ok&&p.pct!=null?Number(p.pct).toFixed(0)+"%":"";
   paStats();
-  if(!p.configured){$("#ph").innerHTML=`<div class="find info"><span class="ic">•</span><div><b>No ad blocker connected</b><span>The dashboard works without one. To add Pi-hole or AdGuard Home later, run <code>./install/install.sh</code> again and pick it, or set <code>PIHOLE_URL</code> / <code>ADGUARD_URL</code> in <code>config/ncc.env</code> (password in <code>~/.config/ncc/secrets.env</code>), then run <code>./ncc restart</code>.</span></div></div>`;return}
+  if(!p.configured){$("#ph").innerHTML=`<div class="find info"><span class="ic">•</span><div><b>No ad blocker connected</b><span>The dashboard works without one. To add Pi-hole or AdGuard Home later, run the installer again (<code>./install/install.sh</code>, or <code>install-windows.cmd</code> on Windows) and pick it, or set <code>PIHOLE_URL</code> / <code>ADGUARD_URL</code> in <code>config/ncc.env</code> (password in <code>~/.config/ncc/secrets.env</code>), then run <code>./ncc restart</code>.</span></div></div>`;return}
   const list=a=>(a&&a.length)?`<ul class="toplist">${a.map(([k,v])=>`<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>`:'<p class="note">not available</p>';
   $("#ph").innerHTML=`<div class="controls">${!p.ok?chip("crit","Unreachable"):(p.blocking==="enabled"||p.blocking===true)?chip("good","Blocking enabled"):chip("warn","Blocking "+p.blocking)}
      <span class="muted">${esc(p.host)} · API ${esc(p.api||"?")}${p.version?" · "+esc(p.version):""} · DNS ${p.dns&&p.dns.ok?"✔ "+p.dns.ms+" ms":"✖"}</span>
@@ -1325,7 +1336,7 @@ function security(){
   $("#sec").innerHTML=`<dl class="kv">
     <dt>Monitored services</dt><dd>${S.last.gw.ok?"gateway ✔":"gateway ✖"} · ${S.last.internet?"internet ✔":"internet ✖"} · ${S.last.dns.ok?"dns ✔":"dns ✖"} · ${S.pihole.configured?(S.pihole.ok?"pi-hole ✔":"pi-hole ✖"):"pi-hole —"}</dd>
     <dt>SSH server</dt><dd>${a.sshd?"running (watched)":"not installed / not running"}</dd>
-    <dt>Auth log</dt><dd>${a.available?"watched via adm group":"unavailable"}</dd>
+    <dt>Auth log</dt><dd>${a.available?"watched via adm group":esc(a.reason||"unavailable")}</dd>
     <dt>Network-exposed ports on this PC</dt><dd>${pub.length?esc(pub.join(", ")):"none (all services localhost-only)"}</dd>
     <dt>Notifications</dt><dd>desktop${S.config.ntfy?" + ntfy push":""}</dd></dl>
     <h2 style="margin-top:14px">Recent failed authentication</h2>
@@ -1494,6 +1505,7 @@ async function load(){
   try{
     [S,HIST]=await Promise.all([api("/api/status"),api("/api/history?hours="+$("#range").value)]);
     if(S.version)$("#ver").textContent="v"+S.version;
+    if(S.version)$("#bug-link").href="https://github.com/ollietech02/network-command-center/issues/new?template=bug_report.yml&version="+encodeURIComponent(S.version)+"&system="+encodeURIComponent(S.last&&S.last.sys&&S.last.sys.os==="windows"?"Windows":"Linux");
     const d=await api("/api/devices");DEV=d.devices;BLK=d.blocked||{};CAN_BLOCK=!!d.can_block;
     $("#ai-sub").textContent=S.config.ai?"rules + Claude (opt-in enabled)":"rule-based · Claude off";
     $("#ask-ai").textContent=S.config.ai?"Ask Claude":"Ask (rules)";

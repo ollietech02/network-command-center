@@ -13,9 +13,40 @@ itself is doing. It sends phone alerts when something breaks.
 - **Three looks:** Sci-fi, Hacker or Clean, plus light/dark and accent colors
 - **Light:** about 50-100 MB of memory, plain Python with no extra libraries
 
-## Install (Linux)
+## Which computers it runs on
 
-Works on **Ubuntu, Debian, Linux Mint and Raspberry Pi OS**. Windows and Mac versions are on the way.
+| System | Ad blocker | Notes |
+|---|---|---|
+| **Linux**: Ubuntu, Debian, Linux Mint, Pop!_OS, Zorin, Raspberry Pi OS and other Debian-based versions | Pi-hole or AdGuard Home | The most complete version. Fedora, Arch and openSUSE aren't supported by the installer yet. |
+| **Windows 10 (1809 or newer) and 11** | AdGuard Home | Pi-hole needs Linux. CPU temperature isn't shown. |
+| **Mac** | | On the way. |
+
+The computer should stay on and connected (a spare laptop or a Raspberry Pi is ideal).
+
+## Install on Windows
+
+1. On this page click the green **Code** button, then **Download ZIP**.
+2. Right-click the ZIP → **Properties** → tick **Unblock** (if you see it) → **OK**. Then right-click → **Extract All**,
+   and put the folder somewhere it can stay, like `Documents\network-command-center`.
+3. Open the folder and double-click **`install-windows.cmd`**. If Windows shows "Windows protected your PC", click
+   **More info → Run anyway**.
+4. Pick a pack (the same choices as on Linux, with AdGuard Home as the ad blocker). The installer shows the full plan and
+   asks **"Go ahead?"** before it changes anything. If a step needs administrator rights (the ad blocker, Tailscale or
+   Remote Desktop), Windows asks **once**: click **Yes**.
+
+If you don't have Python, the installer adds it for you (Python 3.12 from python.org, through Windows' own `winget`).
+The dashboard starts by itself whenever you sign in to Windows, and **Network Command Center** appears in the Start
+menu. Everyday commands: open the folder in a terminal and type `.\ncc status`, `.\ncc restart`, `.\ncc logs` or
+`.\ncc backup`. To remove it, double-click **`uninstall-windows.cmd`**.
+
+Good to know on Windows:
+- **AT&T gateways:** AdGuard Home can't hand out addresses on Windows, so set the DNS on each device instead (the
+  dashboard shows how). For the whole home at once on AT&T, use a Raspberry Pi or Linux computer with Pi-hole.
+- **Remote Desktop** only works on Windows Pro, Education and Enterprise. You sign in with your normal Windows account.
+- **Wi-Fi neighbors** on Windows 11 need Location turned on (Settings → Privacy & security → Location).
+- The dashboard runs while you're signed in. The ad blocker runs all the time.
+
+## Install on Linux
 
 1. Open a terminal and download it:
    ```
@@ -52,6 +83,7 @@ every default.
   many devices are using the ad blocker so you can tell when it's working. The short version is below.
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
 - **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
+- **Something wrong?** See [Found a bug?](#found-a-bug) below.
 
 ## Whole-home ad blocking
 
@@ -87,12 +119,14 @@ Manual; Windows: Settings → Network → your network → DNS server assignment
   network, never through an open port.
 - Nothing is opened to the internet. "Web access" (any browser, no Tailscale) is a separate switch you turn on
   yourself, and it uses passwords plus emailed sign-in codes.
-- It never signs in to your router or changes its settings, firewall or Wi-Fi.
-- Passwords live in `~/.config/ncc/secrets.env`, readable only by you, and never in this folder.
+- It never signs in to your router or changes its settings, firewall or Wi-Fi. On Windows it adds Windows Firewall
+  rules only for what you picked (ad blocker, Remote Desktop), limited to your home network and Tailscale.
+- Passwords live in `~/.config/ncc/secrets.env` (Windows: `C:\Users\<you>\.config\ncc\secrets.env`), readable only by you, and
+  never in this folder.
 - Pi-hole, AdGuard Home and Tailscale are downloaded only from their official sources. AdGuard Home is checked against
-  its published checksum. If the ad blocker breaks name lookups, the installer undoes its DNS change.
+  its published checksum; on Windows, Tailscale's installer must carry Tailscale's digital signature. If the ad blocker breaks name lookups, the installer undoes its DNS change.
 
-## Everyday commands
+## Everyday commands (Linux)
 
 ```
 ./ncc status      is it running?
@@ -102,7 +136,7 @@ Manual; Windows: Settings → Network → your network → DNS server assignment
 ./ncc test        quick self-test
 ```
 
-## Uninstall
+## Uninstall (Linux)
 
 ```
 ./install/uninstall.sh
@@ -118,6 +152,16 @@ status pages: whole-home internet speed, data usage, and the device list. Other 
 ## Settings file
 
 `config/ncc.env` holds the settings; `config/ncc.env.example` explains each one. After changing it, run `./ncc restart`.
+
+## Found a bug?
+
+Please tell us! Open the **[Issues](https://github.com/ollietech02/network-command-center/issues)** page and click
+**New issue → Report a problem** (a free GitHub account is needed). The dashboard has a shortcut too:
+**Troubleshoot → Found a bug? → Report a problem**, which fills in your version for you. Ideas are welcome there as well
+(**Suggest an idea**).
+
+Reports are public, so leave out passwords, email addresses and other private details. Have a look at the open issues
+first: someone may have reported it already.
 
 ## Credits
 
