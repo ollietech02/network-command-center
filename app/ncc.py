@@ -2005,6 +2005,9 @@ _fails = 0
 _flags = {}
 
 
+_dns_bad = 0  # DNS checks failed in a row
+
+
 def flag(kind, cond, level, msg_on, msg_off):
     """Emit an event only on state transitions."""
     was = _flags.get(kind, False)
@@ -2016,7 +2019,7 @@ def flag(kind, cond, level, msg_on, msg_off):
 
 
 def collect():
-    global _down_since, _fails
+    global _down_since, _fails, _dns_bad
     gw = default_gateway()
     with ThreadPoolExecutor(6) as ex:
         f_gw = ex.submit(ping, gw) if gw else None
@@ -2028,6 +2031,8 @@ def collect():
         sysm = sysmetrics()
         g = f_gw.result() if f_gw else {"ok": False, "loss": 100, "ms": None}
         w, h, d, ph = f_wan.result(), f_https.result(), f_dns.result(), f_ph.result()
+        if not d["ok"]:  # one slow answer (a router refreshing its cache) isn't an outage: ask once more
+            d = dns_check(CFG["DNS_TEST_NAME"])
         try:
             bb = f_bb.result()
         except Exception as e:
@@ -2051,7 +2056,8 @@ def collect():
         event("info", "internet-recovered", f"Internet restored after {(now - _down_since) // 60} min.", "phone")
         _down_since = None
     flag("gateway", not g["ok"], "crit", f"Router {gw} not responding to ping.", "Gateway reachable again.")
-    flag("dns", internet and not d["ok"], "warn", "DNS lookups are failing while the internet is up.", "DNS resolution recovered.")
+    _dns_bad = _dns_bad + 1 if internet and not d["ok"] else 0
+    flag("dns", _dns_bad >= 2, "warn", "DNS lookups are failing while the internet is up.", "DNS resolution recovered.")
     if ph.get("configured"):
         # separate kinds so the "back on" alert isn't swallowed by the 15-minute rate limit of the "off" one
         ph_down = not ph.get("ok")
