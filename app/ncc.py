@@ -2074,11 +2074,12 @@ def collect():
         except (OSError, ValueError):
             up = 1e9
         if up < 900:  # announce only real boots, not dashboard restarts
-            event("info", "laptop-on", f"The laptop is on again (started {int(up // 60)} min ago). Pi-hole and the dashboard are running.", "phone")
+            event("info", "laptop-on", f"The computer is on again (started {int(up // 60)} min ago). The dashboard is running.", "phone")
     flag("memory", sysm["mem_avail"] < 0.08 * sysm["mem_total"], "warn",
          f"Memory pressure: only {sysm['mem_avail'] // 2**20} MiB available.", "Memory pressure cleared.")
     flag("disk", sysm["disk_pct"] > 90, "warn", f"Disk {sysm['disk_pct']}% full.", "Disk usage back under 90%.")
-    flag("temperature", (sysm["temp"] or 0) >= 90, "warn", f"CPU temperature high: {sysm['temp'] * 9 / 5 + 32:.0f} °F.", "CPU temperature normal.")
+    temp = sysm["temp"] or 0  # None where there's no sensor (Windows, some Linux machines)
+    flag("temperature", temp >= 90, "warn", f"CPU temperature high: {temp * 9 / 5 + 32:.0f} °F.", "CPU temperature normal.")
     try:
         record_usage(bb)
         check_data_cap()
@@ -2743,7 +2744,7 @@ def diagnose():
         f.append({"level": "warn", "title": "Low memory",
                   "detail": f"Only {sysm['mem_avail'] // 2**20} MiB available, swap used {sysm['swap_used'] // 2**20} MiB. Biggest users: " + ", ".join(f"{n} (~{m} MiB)" for n, m in hogs[:3]) + ". Closing browser tabs is the quickest fix."})
     if sysm["cpu"] and sysm["cpu"] > 85:
-        f.append({"level": "warn", "title": "CPU busy", "detail": f"CPU at {sysm['cpu']}%, load {sysm['load']}."})
+        f.append({"level": "warn", "title": "CPU busy", "detail": f"CPU at {sysm['cpu']}%" + (f", load {sysm['load']}." if sysm["load"] is not None else ".")})
     if sysm["temp"] and sysm["temp"] >= 85:
         f.append({"level": "warn", "title": "Running hot", "detail": f"CPU package at {sysm['temp'] * 9 / 5 + 32:.0f} °F. Check vents/fan."})
     devs = STATE["devices"]
@@ -2887,7 +2888,7 @@ def rule_answer(topic):
     if topic == "slow" and not sel:
         s = STATE["last"]["sys"]
         return (f"Nothing alarming: CPU {s['cpu']}%, {s['mem_avail'] // 2**20} MiB RAM available, "
-                f"swap used {s['swap_used'] // 2**20} MiB, temp {s['temp']} C. Top memory users: "
+                f"swap used {s['swap_used'] // 2**20} MiB" + (f", temp {s['temp']} C" if s["temp"] is not None else "") + ". Top memory users: "
                 + ", ".join(f"{n} ~{m} MiB" for n, m in top_processes(3)) + ".")
     if topic == "next" and not sel:
         return "No warnings right now. Everything measured is within normal ranges."

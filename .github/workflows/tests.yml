@@ -80,6 +80,8 @@ jobs:
           if (-not (Select-String -Path config\ncc.env -Pattern '^ADGUARD_URL=http://127.0.0.1:8082$')) { throw 'ADGUARD_URL not set' }
           if (Test-Path data\.setup-in.json) { throw 'the AdGuard Home password file was not deleted' }
           Start-Sleep 70   # let the dashboard finish a full round of checks
+          $crash = Select-String -Path data\ncc.log -Pattern 'collect error|Traceback'
+          if ($crash) { $crash | ForEach-Object { Write-Host $_.Line }; throw 'the dashboard hit an error during its checks' }
           $s = Invoke-RestMethod http://127.0.0.1:8088/api/status
           Write-Host "internet: $($s.last.internet)  dns: $($s.last.dns.ok)  ad blocker: $($s.pihole.name) ok=$($s.pihole.ok)"
           Write-Host "cpu: $($s.last.sys.cpu)%  memory: $($s.last.sys.mem_pct)%  disk: $($s.last.sys.disk_pct)%"
