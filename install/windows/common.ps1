@@ -63,7 +63,12 @@ function EnvGet($file, $key) {
 function SecretsReady($dir, $file) {
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   if (-not (Test-Path $file)) { [IO.File]::WriteAllText($file, '') }
-  & icacls.exe $dir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "$($env:USERDOMAIN)\$($env:USERNAME):(OI)(CI)F" /T /Q | Out-Null
+  # Only this account and Windows itself (SYSTEM) may read it. Name the account by its SID: USERDOMAIN\USERNAME
+  # isn't always the real account name (Microsoft accounts, renamed users), and a wrong name would lock everyone out.
+  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  & icacls.exe $dir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*${sid}:(OI)(CI)F" /Q | Out-Null
+  & icacls.exe $file /reset /Q | Out-Null   # the file takes the folder's permissions
+  try { [IO.File]::AppendAllText($file, '') } catch { Die "Can't write $file after protecting it: $($_.Exception.Message)" }
 }
 
 function NetDetect {

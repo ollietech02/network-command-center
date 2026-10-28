@@ -16,7 +16,7 @@ function InstallTask {
     $p = FindPython; if (-not $p) { throw 'Python not found. Run install-windows.cmd again.' }
     $py = Join-Path (Split-Path $p) 'pythonw.exe'; EnvSet $Conf PYTHONW $py
   }
-  $me = "$env:USERDOMAIN\$env:USERNAME"
+  $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name   # the real account name, also for Microsoft accounts
   $a = New-ScheduledTaskAction -Execute $py -Argument "-X utf8 -I `"$Dir\app\ncc.py`"" -WorkingDirectory $Dir
   $t = New-ScheduledTaskTrigger -AtLogOn -User $me
   $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Python compiles (3.9 and newer)
         run: python3 -I -m py_compile app/ncc.py app/ncc_win.py app/doctor.py
       - name: Shell scripts parse
@@ -46,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Scripts parse in Windows PowerShell 5.1
         shell: powershell
         run: |
@@ -104,7 +104,7 @@ jobs:
         run: ncc.cmd restart && ncc.cmd status
       - name: Keep the logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-${{ matrix.os }}
           path: |
