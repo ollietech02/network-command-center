@@ -1,0 +1,113 @@
+# Tests on every upload: syntax everywhere, then the real Windows installer on fresh Windows machines.
+# GitHub's computers are thrown away after each run, so installing things there changes nothing of yours.
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Syntax and parsing (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python compiles (3.9 and newer)
+        run: python3 -I -m py_compile app/ncc.py app/ncc_win.py app/doctor.py
+      - name: Shell scripts parse
+        run: for f in ncc ncc-app install/install.sh install/uninstall.sh install/lib/*.sh; do bash -n "$f" || exit 1; done
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem install/windows/*.ps1) {
+            $err = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$err) | Out-Null
+            foreach ($e in $err) { Write-Host "::error file=$($f.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $bad++ }
+          }
+          if ($bad) { exit 1 }
+      - name: PowerShell files are plain ASCII (Windows PowerShell 5.1 needs it)
+        run: "! grep -nP '[^\\x00-\\x7F]' install/windows/*.ps1"
+      - name: Parsing and redaction tests
+        run: python3 -I tests/test_parsing.py
+
+  windows:
+    name: Windows installer (${{ matrix.os }})
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scripts parse in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem install\windows\*.ps1) {
+            $err = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$err) | Out-Null
+            foreach ($e in $err) { Write-Host "::error file=$($f.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $bad++ }
+          }
+          if ($bad) { exit 1 }
+      - name: Windows readings work for real
+        run: python -X utf8 -I tests\test_windows_live.py
+      - name: Parsing tests
+        run: python -X utf8 -I tests\test_parsing.py
+      - name: Install with the Home Shield pack (dashboard + AdGuard Home), no questions
+        shell: cmd
+        run: install-windows.cmd -Pack shield -Yes
+      - name: Check the install
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $h = Invoke-WebRequest http://127.0.0.1:8088/api/health -UseBasicParsing -TimeoutSec 10
+          Write-Host "health: $($h.Content)"
+          .\ncc.cmd test
+          if ($LASTEXITCODE -ne 0) { throw 'ncc test failed' }
+          if (-not (Get-ScheduledTask -TaskName 'Network Command Center' -ErrorAction SilentlyContinue)) { throw 'startup task missing' }
+          if ((Get-Service AdGuardHome).Status -ne 'Running') { throw 'AdGuard Home is not running' }
+          $a = Resolve-DnsName example.com -Server 127.0.0.1 -DnsOnly -Type A
+          Write-Host "AdGuard Home answers: $($a.IPAddress -join ', ')"
+          if (-not (Get-NetFirewallRule -DisplayName 'Network Command Center: AdGuard Home*')) { throw 'firewall rule missing' }
+          if (-not (Select-String -Path config\ncc.env -Pattern '^ADGUARD_URL=http://127.0.0.1:8082$')) { throw 'ADGUARD_URL not set' }
+          if (Test-Path data\.setup-in.json) { throw 'the AdGuard Home password file was not deleted' }
+          Start-Sleep 70   # let the dashboard finish a full round of checks
+          $s = Invoke-RestMethod http://127.0.0.1:8088/api/status
+          Write-Host "internet: $($s.last.internet)  dns: $($s.last.dns.ok)  ad blocker: $($s.pihole.name) ok=$($s.pihole.ok)"
+          Write-Host "cpu: $($s.last.sys.cpu)%  memory: $($s.last.sys.mem_pct)%  disk: $($s.last.sys.disk_pct)%"
+          if (-not $s.pihole.ok) { throw 'dashboard cannot reach AdGuard Home' }
+          if ($null -eq $s.last.sys.cpu) { throw 'no CPU reading' }
+          $g = Invoke-RestMethod http://127.0.0.1:8088/api/blocker/setup
+          Write-Host "whole-home guide: os=$($g.os) dhcp_ok=$($g.dhcp_ok) private=$($g.network_private)"
+          if ($g.os -ne 'windows' -or $g.dhcp_ok -ne $false) { throw 'whole-home guide facts are wrong' }
+      - name: Health report
+        shell: cmd
+        run: ncc.cmd doctor
+      - name: Tailscale download and signature check (no sign-in)
+        shell: powershell
+        run: |
+          '{"tasks":["tailscale"]}' | Set-Content data\.setup-in.json -Encoding ASCII
+          powershell -NoProfile -ExecutionPolicy Bypass -File install\windows\admin.ps1 -Dir (Get-Location).Path
+          $o = Get-Content data\.setup-out.json -Raw | ConvertFrom-Json
+          if ($o.tailscale -ne 'ok') { throw "Tailscale step: $($o.tailscale)" }
+          if (-not (Test-Path "$env:ProgramFiles\Tailscale\tailscale.exe")) { throw 'tailscale.exe missing' }
+      - name: Restart from the control script
+        shell: cmd
+        run: ncc.cmd restart && ncc.cmd status
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.os }}
+          path: |
+            data/ncc.log
+            data/setup-admin.log
+          if-no-files-found: ignore

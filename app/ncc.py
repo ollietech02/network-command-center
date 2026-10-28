@@ -41,8 +41,9 @@ STATIC = BASE / "app" / "static"
 DATA = BASE / "data"
 DATA.mkdir(exist_ok=True)
 WIN = os.name == "nt"
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I leaves the script's own folder off the path
+import doctor  # noqa: E402  (the "ncc doctor" health report, also behind "Copy for my AI")
 if WIN:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I leaves the script's own folder off the path
     import ncc_win as W
     _ts = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Tailscale"
     if _ts.is_dir() and str(_ts).lower() not in os.environ.get("PATH", "").lower():
@@ -71,7 +72,7 @@ CFG = {
     "BIND": "127.0.0.1", "PORT": "8088", "INTERVAL": "60", "DEVICE_INTERVAL": "300",
     "GATEWAY": "", "WAN_TARGET": "1.1.1.1", "HTTPS_URL": "https://www.google.com/generate_204",
     "DNS_TEST_NAME": "example.com", "PIHOLE_URL": "", "PIHOLE_CONTROLS": "0", "PIHOLE_LISTS": "0", "PIHOLE_BLOCK": "0", "SYSTEM_CONTROLS": "0",
-    "AI_ENABLED": "0", "AI_MODEL": "claude-haiku-5-5", "NTFY_URL": "", "DESKTOP_NOTIFY": "1", "SPEEDTEST_EVERY_MIN": "60",
+    "AI_ENABLED": "0", "AI_ASSISTANT": "", "AI_MODEL": "", "NTFY_URL": "", "DESKTOP_NOTIFY": "1", "SPEEDTEST_EVERY_MIN": "60",
     "RETENTION_DAYS": "30", "ADGUARD_URL": "", "ROUTER": "generic", "STYLE": "scifi", "REMOTE_DESKTOP": "0", "RDP_USER": "remote",
 }
 CFG.update(load_env(BASE / "config" / "ncc.env"))
@@ -215,6 +216,10 @@ def save_settings(body):
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(body["speedtest_at"])):
             raise ValueError("Time must look like 03:00.")
         s["speedtest_at"] = body["speedtest_at"]
+    if "ai_assistant" in body:
+        if body["ai_assistant"] not in list(AI_TOOLS) + ["off"]:
+            raise ValueError("Unknown AI assistant.")
+        s["ai_assistant"] = body["ai_assistant"]
     if "web_access" in body:
         s["web_access"] = body["web_access"] is True
         if not s["web_access"]:
@@ -2780,26 +2785,79 @@ def snapshot_for_ai():
             "recent_events": ev, "rule_findings": diagnose()}
 
 
+# The person's own AI assistant, through its own command-line program and their own sign-in (never a shared account).
+# Each one runs without tools where the program allows it, in an empty folder, and only for requests from this computer.
+AI_TOOLS = {"claude": "Claude Code", "codex": "Codex", "gemini": "Gemini CLI"}
+
+
+def ai_exe(name):
+    exe = shutil.which(name)
+    if not exe and name == "claude":
+        p = Path.home() / ".local" / "bin" / ("claude.exe" if WIN else "claude")
+        exe = str(p) if p.exists() else None
+    return exe
+
+
+def ai_assistant():
+    a = settings().get("ai_assistant")
+    if a is None:
+        a = CFG["AI_ASSISTANT"] or ("claude" if CFG["AI_ENABLED"] == "1" else "off")
+    return a if a in AI_TOOLS else "off"
+
+
+def ai_command(name, exe, sandbox):
+    model = CFG["AI_MODEL"].strip()
+    if name == "claude":
+        return [exe, "-p", "--model", model or "claude-haiku-5-5", "--tools", "", "--strict-mcp-config",
+                "--no-session-persistence", "--setting-sources", ""], None
+    if name == "codex":
+        out = sandbox / "answer.txt"
+        out.unlink(missing_ok=True)
+        cmd = [exe, "exec", "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never", "-o", str(out)]
+        return cmd + (["-m", model] if model else []) + ["-"], out
+    if name == "gemini":
+        return [exe, "-p", "Answer the request given on standard input.", "--approval-mode", "default"] + (["-m", model] if model else []), None
+    raise ValueError("unknown assistant")
+
+
 def ask_ai(question):
-    exe = shutil.which("claude") or str(Path.home() / ".local/bin/claude")
+    name = ai_assistant()
+    exe = ai_exe(name) if name != "off" else None
+    if not exe:
+        return f"AI unavailable: {AI_TOOLS.get(name, 'no assistant')} isn't installed on this computer (or isn't on its PATH)."
     prompt = ("You are the read-only troubleshooting assistant for a home network dashboard. Answer the user's question "
               "in plain, friendly language using ONLY the monitoring data below. If the data does not show something, say so "
-              "instead of guessing. Keep it under 180 words. Suggest safe next checks; never claim you changed anything.\n\n"
-              f"MONITORING DATA (JSON):\n{json.dumps(snapshot_for_ai(), default=str)}\n\nQUESTION: {question}")
+              "instead of guessing. Keep it under 180 words. Suggest safe next checks; never claim you changed anything. "
+              "Do not run commands or read files.\n\n"
+              f"MONITORING DATA (JSON):\n{doctor.redact(json.dumps(snapshot_for_ai(), default=str))}\n\nQUESTION: {question}")
     sandbox = DATA / "ai-sandbox"
     sandbox.mkdir(exist_ok=True)
     try:
-        cmd = [exe, "-p", "--model", CFG["AI_MODEL"], "--tools", "", "--strict-mcp-config",
-               "--no-session-persistence", "--setting-sources", ""]
-        # the CLI needs more memory than this service's cap allows, so give it its own short-lived, capped unit
+        cmd, out_file = ai_command(name, exe, sandbox)
+        # the programs need more memory than this service's cap allows, so give them their own short-lived, capped unit
         if shutil.which("systemd-run"):
-            cmd = ["systemd-run", "--user", "--quiet", "--wait", "--pipe", "--collect", "-p", "MemoryMax=400M",
+            cmd = ["systemd-run", "--user", "--quiet", "--wait", "--pipe", "--collect", "-p", "MemoryMax=700M",
                    "-p", "CPUQuota=60%", f"--working-directory={sandbox}"] + cmd
-        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=120, cwd=sandbox,
+        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=180, cwd=sandbox, errors="replace",
                            **({"creationflags": W.NO_WINDOW} if WIN else {}))
-        return p.stdout.strip() or ("AI error: " + p.stderr.strip()[:300])
+        ans = out_file.read_text(errors="replace").strip() if out_file and out_file.exists() else p.stdout.strip()
+        return ans or (f"AI error ({AI_TOOLS[name]}): " + doctor.redact(p.stderr.strip()[-300:]))
     except Exception as e:
         return f"AI unavailable: {type(e).__name__}"
+
+
+def ai_handoff(status):
+    """Everything someone's own AI needs to help, passwords and private names removed ("Copy for my AI")."""
+    extra = {"Service": doctor.service_state(), "Tailscale": doctor.tailscale_state()}
+    report = doctor.build(status, CFG, list(SECRETS), extra, doctor.log_tail(25))
+    folder = doctor.redact(str(BASE))
+    run_cmd = r"ncc doctor" if WIN else "./ncc doctor"
+    return (f"I use Network Command Center ({doctor.REPO}), a home network dashboard. It runs on my "
+            f"{'Windows' if WIN else 'Linux'} computer in the folder {folder}.\n\n"
+            f"My problem: [describe it here]\n\n"
+            f"If you can work on that computer (Claude Code, Codex, Gemini CLI, Cursor and others), open that folder first: "
+            f"AGENTS.md there explains how the dashboard works, the commands to use (start with `{run_cmd}`), and the safety "
+            f"rules. Ask me before changing anything. If you can't, just help me with the report below.\n\n" + report)
 
 
 QUICK = {
@@ -2865,6 +2923,20 @@ def action(name, arg):
         _, out = run([exe, "-n", "-m", "15", arg], 40)
         return {"output": out[-3000:]}
     raise ValueError("Unknown action")
+
+
+def status_body():
+    with LOCK:
+        body = {"last": STATE["last"], "pihole": STATE["pihole"], "gateway": STATE["gateway"],
+                "device_meta": STATE.get("device_meta"), "security": STATE["security"],
+                "uptime": uptime_stats(), "findings": diagnose(), "started": STATE["started"], "version": VERSION,
+                "config": {"interval": CFG["INTERVAL"], "wan_target": CFG["WAN_TARGET"],
+                           "ai": ai_assistant() != "off", "ai_name": AI_TOOLS.get(ai_assistant()), "pihole_controls": CFG["PIHOLE_CONTROLS"] == "1",
+                           "pihole_lists": CFG["PIHOLE_LISTS"] == "1",
+                           "system_controls": CFG["SYSTEM_CONTROLS"] == "1",
+                           "ntfy": bool(ntfy_url())}}
+    body["gateway"] = {k: v for k, v in body["gateway"].items()}
+    return body
 
 
 # ---------------------------------------------------------------- HTTP
@@ -2990,17 +3062,14 @@ class H(BaseHTTPRequestHandler):
             age = time.time() - (STATE["last"].get("ts") or STATE["started"])
             return self._send(200 if age < 3 * int(CFG["INTERVAL"]) else 503, {"ok": age < 3 * int(CFG["INTERVAL"]), "age": round(age), "version": VERSION})
         if path == "/api/status":
-            with LOCK:
-                body = {"last": STATE["last"], "pihole": STATE["pihole"], "gateway": STATE["gateway"],
-                        "device_meta": STATE.get("device_meta"), "security": STATE["security"],
-                        "uptime": uptime_stats(), "findings": diagnose(), "started": STATE["started"], "version": VERSION,
-                        "config": {"interval": CFG["INTERVAL"], "wan_target": CFG["WAN_TARGET"],
-                                   "ai": CFG["AI_ENABLED"] == "1", "pihole_controls": CFG["PIHOLE_CONTROLS"] == "1",
-                                   "pihole_lists": CFG["PIHOLE_LISTS"] == "1",
-                                   "system_controls": CFG["SYSTEM_CONTROLS"] == "1",
-                                   "ntfy": bool(ntfy_url())}}
-            body["gateway"] = {k: v for k, v in body["gateway"].items()}
-            return self._send(200, body)
+            return self._send(200, status_body())
+        if path == "/api/ai":
+            return self._send(200, {"assistant": ai_assistant(), "names": AI_TOOLS, "local": not self._remote(),
+                                    "installed": {k: bool(ai_exe(k)) for k in AI_TOOLS}})
+        if path == "/api/ai/handoff":
+            if not self._manager():
+                return self._send(403, {"error": "Only on this computer or one of your own Tailscale devices."})
+            return self._send(200, {"text": ai_handoff(status_body())})
         if path == "/api/history":
             hrs = min(720, max(1, int(q.get("hours", "24"))))
             return self._send(200, history(hrs))
@@ -3197,9 +3266,11 @@ class H(BaseHTTPRequestHandler):
                 topic = body.get("topic")
                 if topic in QUICK and not body.get("ai"):
                     return self._send(200, {"answer": rule_answer(topic), "source": "rules"})
-                if body.get("ai") and CFG["AI_ENABLED"] == "1":
-                    return self._send(200, {"answer": ask_ai(question), "source": "claude"})
-                return self._send(200, {"answer": rule_answer("next") + ("\n\n(AI answers are off. Set AI_ENABLED=1 in config/ncc.env to enable.)" if body.get("ai") else ""), "source": "rules"})
+                if body.get("ai") and ai_assistant() != "off" and not self._remote():
+                    return self._send(200, {"answer": ask_ai(question), "source": ai_assistant()})
+                why = ("AI answers are off. Pick your assistant in Tools & settings → AI assistant." if ai_assistant() == "off"
+                       else "AI answers only work on the computer itself, so nobody else can use your AI account.")
+                return self._send(200, {"answer": rule_answer("next") + (f"\n\n({why})" if body.get("ai") else ""), "source": "rules"})
             if path == "/api/action":
                 return self._send(200, action(str(body.get("name")), str(body.get("arg", ""))[:255]))
             if path == "/api/remote/pin":
@@ -3279,6 +3350,8 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "users": sorted(web_users())})
             if path == "/api/settings":
+                if "ai_assistant" in body and self._remote():
+                    return self._send(403, {"error": "The AI assistant can only be chosen on the computer itself."})
                 if not self._manager() and {"web_access", "web_session_h", "pin_session_h"} & set(body):
                     return self._send(403, {"error": "Only on the laptop or one of your Tailscale devices (not from the open web)."})
                 if body.get("web_access") is True and not web_users():

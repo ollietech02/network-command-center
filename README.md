@@ -153,6 +153,22 @@ status pages: whole-home internet speed, data usage, and the device list. Other 
 
 `config/ncc.env` holds the settings; `config/ncc.env.example` explains each one. After changing it, run `./ncc restart`.
 
+## Get help from your own AI
+
+Bring whichever AI assistant you already use. Nobody shares an account, and you never need one from this project.
+
+- **Any AI (even a chat app on your phone):** in the dashboard, **Troubleshoot → Copy for my AI**. It copies a health
+  report with passwords and private details removed, plus instructions. Paste it into Claude, ChatGPT, Gemini, Copilot
+  or any other assistant and describe the problem.
+- **AI coding tools that can work on your computer** (Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot and others):
+  open the tool in the dashboard folder and describe the problem, for example *"the dashboard says DNS is failing, help
+  me fix it"*. They automatically read [`AGENTS.md`](AGENTS.md), which explains how everything works, the commands to
+  use, and the safety rules (look first, ask before changing anything, never show passwords). The health report on its
+  own: `./ncc doctor` (Windows: `ncc doctor`).
+- **The "Ask" box in the Troubleshoot tab:** pick your assistant in **Tools & settings → AI assistant** (Claude Code,
+  Codex or Gemini CLI). It uses that program on this computer with your own sign-in, sends it only a snapshot of the
+  measurements with private details removed, and only answers questions asked on this computer.
+
 ## Found a bug?
 
 Please tell us! Open the **[Issues](https://github.com/ollietech02/network-command-center/issues)** page and click

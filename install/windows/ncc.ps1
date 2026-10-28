@@ -1,4 +1,4 @@
-# Network Command Center control script for Windows. Usage: ncc {start|stop|restart|status|logs [n]|open|test|backup|uninstall}
+# Network Command Center control script for Windows. Usage: ncc {start|stop|restart|status|logs [n]|doctor|open|test|backup|uninstall}
 # (ncc.cmd in the main folder runs this.) It runs as a Task Scheduler task that starts when you sign in.
 param([string]$Cmd = 'status', [string]$Arg = '')
 $ErrorActionPreference = 'Stop'
@@ -28,7 +28,16 @@ function InstallTask {
 function WaitUp { for ($i = 0; $i -lt 20; $i++) { if (Health $Port) { return $true }; Start-Sleep 1 }; return $false }
 
 switch ($Cmd) {
-  'start' { InstallTask; Start-ScheduledTask -TaskName $Task; [void](WaitUp); Say "Dashboard: $Url" }
+  'start' {
+    InstallTask; Start-ScheduledTask -TaskName $Task
+    if (-not (WaitUp)) {
+      # Task Scheduler didn't start it (it needs a signed-in desktop session): start it directly this time
+      Warn 'Task Scheduler did not start the dashboard; starting it directly. It will start with Windows after the next sign-in.'
+      Start-Process (EnvGet $Conf PYTHONW) -ArgumentList '-X', 'utf8', '-I', "`"$Dir\app\ncc.py`"" -WorkingDirectory $Dir -WindowStyle Hidden
+      [void](WaitUp)
+    }
+    Say "Dashboard: $Url"
+  }
   'stop' { if (TaskExists) { Stop-ScheduledTask -TaskName $Task } }
   'restart' {
     InstallTask
@@ -42,9 +51,10 @@ switch ($Cmd) {
   }
   'logs' { $n = if ($Arg) { [int]$Arg } else { 100 }; if (Test-Path "$Dir\data\ncc.log") { Get-Content "$Dir\data\ncc.log" -Tail $n } else { Say 'No log yet.' } }
   'open' { Start-Process "http://localhost:$Port/" }
+  'doctor' { $py = (EnvGet $Conf PYTHONW) -replace 'pythonw\.exe$', 'python.exe'; & $py -X utf8 -I "$Dir\app\doctor.py" $Arg }
   'test' {
     $py = EnvGet $Conf PYTHONW; $py = $py -replace 'pythonw\.exe$', 'python.exe'
-    & $py -I -m py_compile "$Dir\app\ncc.py" "$Dir\app\ncc_win.py"; if ($LASTEXITCODE -eq 0) { Say 'syntax OK' } else { Say 'syntax FAIL'; exit 1 }
+    & $py -I -m py_compile "$Dir\app\ncc.py" "$Dir\app\ncc_win.py" "$Dir\app\doctor.py"; if ($LASTEXITCODE -eq 0) { Say 'syntax OK' } else { Say 'syntax FAIL'; exit 1 }
     if (Health $Port) { Say 'health OK' } else { Say 'health FAIL'; exit 1 }
     try { if ((Invoke-WebRequest "$Url/" -UseBasicParsing -TimeoutSec 10).Content -match 'Network Command Center') { Say 'UI OK' } else { throw 'x' } } catch { Say 'UI FAIL'; exit 1 }
   }
@@ -64,5 +74,5 @@ switch ($Cmd) {
     if (TaskExists) { Stop-ScheduledTask -TaskName $Task -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName $Task -Confirm:$false }
     Say "Dashboard removed from startup. Program files left in $Dir."
   }
-  default { Say 'usage: ncc {start|stop|restart|status|logs [n]|open|test|backup|uninstall}'; exit 1 }
+  default { Say 'usage: ncc {start|stop|restart|status|logs [n]|doctor|open|test|backup|uninstall}'; exit 1 }
 }

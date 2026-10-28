@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Network Command Center control script.  Usage: ./ncc {start|stop|restart|status|logs|open|test|backup|restore <file>|update|uninstall}
+# Network Command Center control script.  Usage: ./ncc {start|stop|restart|status|logs|doctor|open|test|backup|restore <file>|update|uninstall}
 set -euo pipefail
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 UNIT=ncc.service
@@ -41,6 +41,7 @@ case "${1:-status}" in
   logs)    journalctl --user -u $UNIT -n "${2:-100}" --no-pager ;;
   follow)  journalctl --user -u $UNIT -f ;;
   open)    xdg-open "$URL" >/dev/null 2>&1 & ;;
+  doctor)  python3 -I "$DIR/app/doctor.py" "${@:2}" ;;
   test)    python3 -I -m py_compile "$DIR/app/ncc.py" && echo "syntax OK"
            curl -sf -m5 "$URL/api/health" >/dev/null && echo "health OK" || { echo "health FAIL"; exit 1; }
            curl -sf -m10 "$URL/" | grep -c "Network Command Center" >/dev/null && echo "UI OK" || { echo "UI FAIL"; exit 1; } ;;
@@ -60,5 +61,5 @@ case "${1:-status}" in
   update)  "$0" backup; python3 -I -m py_compile "$DIR/app/ncc.py" && "$0" restart && sleep 3 && "$0" test ;;
   uninstall) systemctl --user disable --now $UNIT || true; rm -f "$UNIT_FILE"; systemctl --user daemon-reload
            echo "Service removed. Project files left in $DIR (delete manually if wanted)." ;;
-  *) echo "usage: $0 {start|stop|restart|status|logs [n]|follow|open|test|backup|restore <file>|update|uninstall}"; exit 1 ;;
+  *) echo "usage: $0 {start|stop|restart|status|logs [n]|follow|doctor|open|test|backup|restore <file>|update|uninstall}"; exit 1 ;;
 esac

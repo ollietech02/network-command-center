@@ -409,6 +409,7 @@ tr.edrow td{background:var(--sunk)}
     <p class="sm muted">The form only fills in the dashboard version and the kind of computer. Before you post, take out passwords, email addresses and anything else private: reports are public.</p></section>
   <section class="panel c4 vo-ok" data-v="only tools" id="set-panel"><h2>Appearance <span class="sub">this browser only</span></h2><div id="set"></div></section>
   <section class="panel c4" data-v="only tools"><h2>Live updates</h2><div id="sb-live"></div></section>
+  <section class="panel c4" data-v="only tools"><h2>AI assistant <span class="sub">your own account, never shared</span></h2><div id="sb-ai"></div></section>
   <section class="panel c4" data-v="only tools"><h2>Speed test</h2><div id="sb-spd"></div></section>
   <section class="panel c6" data-v="only tools"><h2>Weekly report <span class="sub">phone alert only · never emailed</span></h2><div id="sb-wk"></div></section>
   <section class="panel c6" data-v="only tools"><h2>Data usage</h2><div id="sb-du"></div></section>
@@ -464,6 +465,9 @@ tr.edrow td{background:var(--sunk)}
       <button data-topic="next">What should I check next?</button></div>
     <div class="controls"><input id="q" placeholder="Ask in plain language…" style="flex:1;min-width:180px" maxlength="500" aria-label="Question"><button id="ask-ai">Ask Claude</button></div>
     <div class="answer" id="answer"><span class="src">ready</span>Pick a question. Answers come from the live measurements on this page.</div>
+    <div class="controls" style="margin-top:12px"><button id="ai-copy">Copy for my AI</button>
+      <span class="sm muted">A health report with passwords removed, plus instructions. Paste it into any AI: Claude, ChatGPT, Codex, Gemini, Copilot…</span></div>
+    <textarea id="ai-copy-txt" hidden readonly rows="8" style="width:100%" aria-label="Report for your AI"></textarea>
   </section>
   <section class="panel c5 vo-ok" data-v="troubleshoot"><h2>Diagnostic tools <span class="sub">predefined · read-only</span></h2>
     <div class="controls"><input id="tool-arg" placeholder="IP address or hostname" style="flex:1;min-width:160px" aria-label="Target">
@@ -618,6 +622,7 @@ const SECTIONS=[["internet","🌐 Internet uptime and outages"],["speed","⚡ Av
   ["devices","📱 New devices"],["signins","🔐 Web sign-ins"],["sites","🌍 Websites"],["laptop","💻 Laptop restarts"]];
 const saveRow=k=>`<p style="margin-top:12px"><button data-save="${k}">Save</button> <span class="sm" id="msg-${k}"></span></p>`;
 async function settingsUI(){
+  aiUI().catch(()=>{});
   SET=await api("/api/settings");if(!SET||SET.live_period==null){$("#set").innerHTML='<p class="note">Couldn\'t load settings.</p>';return}
   const opt=(v,t,cur)=>`<option value="${v}" ${v===cur?"selected":""}>${t}</option>`;
   const sel=(id,opts,cur,lbl)=>`<select id="${id}" aria-label="${lbl}">${opts.map(([v,t])=>opt(v,t,cur)).join("")}</select>`;
@@ -1507,8 +1512,8 @@ async function load(){
     if(S.version)$("#ver").textContent="v"+S.version;
     if(S.version)$("#bug-link").href="https://github.com/ollietech02/network-command-center/issues/new?template=bug_report.yml&version="+encodeURIComponent(S.version)+"&system="+encodeURIComponent(S.last&&S.last.sys&&S.last.sys.os==="windows"?"Windows":"Linux");
     const d=await api("/api/devices");DEV=d.devices;BLK=d.blocked||{};CAN_BLOCK=!!d.can_block;
-    $("#ai-sub").textContent=S.config.ai?"rules + Claude (opt-in enabled)":"rule-based · Claude off";
-    $("#ask-ai").textContent=S.config.ai?"Ask Claude":"Ask (rules)";
+    $("#ai-sub").textContent=S.config.ai?"rules + "+S.config.ai_name:"rule-based · AI off";
+    $("#ask-ai").textContent=S.config.ai?"Ask "+S.config.ai_name:"Ask (rules)";
     loadExtras().catch(()=>{});if(!$("#al").innerHTML)alertsUI();if(!$("#set").innerHTML)settingsUI().then(speedUI).catch(()=>{});if(!$("#ra").innerHTML||VIEW==="security")remoteUI();internetExtras();
     tiles();findings();sys();charts();topo();devices();macLookup();pihole();security();events();
     if(VIEW==="pihole"&&!LISTS)loadLists();
@@ -1570,10 +1575,27 @@ function liveStart(){if(ES)return;ES=new EventSource("/api/live");ES.onmessage=e
 function liveStop(){if(ES){ES.close();ES=null}$("#live").className="chip live-chip stale";$("#live").innerHTML='<span class="dot"></span>Paused'}
 
 function ans(src,txt){$("#answer").innerHTML=`<span class="src">${esc(src)}</span>${esc(txt)}`}
-document.querySelectorAll("[data-topic]").forEach(b=>b.onclick=async()=>{ans("thinking","…");const r=await api("/api/ask",{topic:b.dataset.topic,question:b.textContent});ans(r.source==="claude"?"claude · based on live data":"rule engine · live data",r.answer)});
-$("#ask-ai").onclick=async()=>{const q=$("#q").value.trim();if(!q)return;ans("thinking",S&&S.config.ai?"Asking Claude with a redacted snapshot of current measurements…":"…");
-  $("#ask-ai").disabled=true;try{const r=await api("/api/ask",{question:q,ai:true});ans(r.source==="claude"?"claude · based on live data":"rule engine · live data",r.answer)}finally{$("#ask-ai").disabled=false}};
+document.querySelectorAll("[data-topic]").forEach(b=>b.onclick=async()=>{ans("thinking","…");const r=await api("/api/ask",{topic:b.dataset.topic,question:b.textContent});ans(r.source!=="rules"?r.source+" · based on live data":"rule engine · live data",r.answer)});
+$("#ask-ai").onclick=async()=>{const q=$("#q").value.trim();if(!q)return;ans("thinking",S&&S.config.ai?"Asking "+S.config.ai_name+" with a redacted snapshot of current measurements…":"…");
+  $("#ask-ai").disabled=true;try{const r=await api("/api/ask",{question:q,ai:true});ans(r.source!=="rules"?r.source+" · based on live data":"rule engine · live data",r.answer)}finally{$("#ask-ai").disabled=false}};
 $("#q").onkeydown=e=>{if(e.key==="Enter")$("#ask-ai").click()};
+// "Copy for my AI": a redacted health report + where the AI guide (AGENTS.md) is, for whatever assistant this person uses
+$("#ai-copy").onclick=async()=>{const b=$("#ai-copy"),t=$("#ai-copy-txt");b.disabled=true;b.textContent="Making the report…";
+  try{const r=await api("/api/ai/handoff");if(!r||!r.text){b.textContent=(r&&r.error)||"Couldn't make the report";return}
+    t.value=r.text;try{await navigator.clipboard.writeText(r.text);b.textContent="Copied ✓ Now paste it into your AI";t.hidden=true}
+    catch(e){t.hidden=false;t.select();b.textContent="Select the text below and copy it"}}
+  finally{b.disabled=false;setTimeout(()=>{b.textContent="Copy for my AI"},6000)}};
+async function aiUI(){
+  const r=await api("/api/ai");if(!r||!r.names)return;
+  const opts=[["off","Off (built-in rules only)"],...Object.entries(r.names).map(([k,n])=>[k,n+(r.installed[k]?"":" (not installed)")])];
+  $("#sb-ai").innerHTML=`<p class="sm">"Ask" in the Troubleshoot tab uses <select id="set-ai" aria-label="AI assistant" ${r.local?"":"disabled"}>${opts.map(([v,t])=>`<option value="${v}" ${v===r.assistant?"selected":""}>${esc(t)}</option>`).join("")}</select> <span class="sm" id="msg-ai"></span></p>
+    <p class="note">It runs the assistant's own program on this computer, signed in with <b>your</b> account, and only answers questions asked on this computer, so nobody else can use it. Install one first and sign in once:
+      <b>Claude Code</b> (claude.com/claude-code) · <b>Codex</b> (<code>npm i -g @openai/codex</code>) · <b>Gemini CLI</b> (<code>npm i -g @google/gemini-cli</code>).
+      ${r.local?"":"<br><b>You can change this only on the computer itself.</b>"}</p>
+    <p class="note">Any other AI: use <b>Copy for my AI</b> in the Troubleshoot tab and paste it in.</p>`;
+}
+document.addEventListener("change",async e=>{if(e.target.id!=="set-ai")return;const m=$("#msg-ai");m.textContent="Saving…";
+  const r=await api("/api/settings",{ai_assistant:e.target.value});m.textContent=r&&!r.error?"Saved ✓":((r&&r.error)||"Couldn't save");if(r&&!r.error)load()});
 document.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{const arg=$("#tool-arg").value.trim();if(!arg)return;
   $("#tool-out").innerHTML='<span class="src">running</span>…';const r=await api("/api/action",{name:b.dataset.act,arg});
   $("#tool-out").innerHTML=`<span class="src">${esc(b.dataset.act)} ${esc(arg)}</span>${esc(r.output||JSON.stringify(r,null,2))}`});
