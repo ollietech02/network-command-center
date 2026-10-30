@@ -98,7 +98,7 @@ def load_csrf():
 CSRF = load_csrf()
 STOP = threading.Event()
 LOCK = threading.Lock()
-VERSION = "1.0"  # first official version, 2026-10-26
+VERSION = "1.1"  # 2026-10-30: Pause, Debian/Raspberry Pi remote desktop, fixes (1.0: first official version, 2026-10-26)
 STATE = {"started": time.time(), "last": {}, "pihole": {"configured": False}, "devices": [],
          "gateway": {}, "security": {}, "listeners": []}
 
