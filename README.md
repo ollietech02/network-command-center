@@ -33,28 +33,8 @@ Pick one when you install, and change it any time in **Tools & settings**. Each 
 
 The computer should stay on and connected (a laptop, a desktop or a [Raspberry Pi](#raspberry-pi) all work).
 
-## Install on Windows
-
-1. On this page click the green **Code** button, then **Download ZIP**.
-2. Right-click the ZIP → **Properties** → tick **Unblock** (if you see it) → **OK**. Then right-click → **Extract All**,
-   and put the folder somewhere it can stay, like `Documents\network-command-center`.
-3. Open the folder and double-click **`install-windows.cmd`**. If Windows shows "Windows protected your PC", click
-   **More info → Run anyway**.
-4. Pick a pack (the same choices as on Linux, with AdGuard Home as the ad blocker). The installer shows the full plan and
-   asks **"Go ahead?"** before it changes anything. If a step needs administrator rights (the ad blocker, Tailscale or
-   Remote Desktop), Windows asks **once**: click **Yes**.
-
-If you don't have Python, the installer adds it for you (Python 3.12 from python.org, through Windows' own `winget`).
-The dashboard starts by itself whenever you sign in to Windows, and **Network Command Center** appears in the Start
-menu. Everyday commands: open the folder in a terminal and type `.\ncc status`, `.\ncc restart`, `.\ncc logs` or
-`.\ncc backup`. To remove it, double-click **`uninstall-windows.cmd`**.
-
-Good to know on Windows:
-- **AT&T gateways:** AdGuard Home can't hand out addresses on Windows, so set the DNS on each device instead (the
-  dashboard shows how). For the whole home at once on AT&T, use a Raspberry Pi or Linux computer with Pi-hole.
-- **Remote Desktop** only works on Windows Pro, Education and Enterprise. You sign in with your normal Windows account.
-- **Wi-Fi neighbors** on Windows 11 need Location turned on (Settings → Privacy & security → Location).
-- The dashboard runs while you're signed in. The ad blocker runs all the time.
+- **On Linux** (including Raspberry Pi): start at [Install on Linux](#install-on-linux) just below.
+- **On Windows**: jump to [Windows](#windows) at the bottom of this page.
 
 ## Install on Linux
 
@@ -146,6 +126,24 @@ Linux installer above, and everything works on it except where noted below.
   your internet is faster.
 - **CPU temperature** shows on the dashboard like on any Linux computer.
 
+## Everyday commands (Linux)
+
+```
+./ncc status      is it running?
+./ncc restart     restart the dashboard
+./ncc logs        recent log lines
+./ncc backup      back up settings and history (keep the file private: it holds passwords)
+./ncc test        quick self-test
+```
+
+## Uninstall (Linux)
+
+```
+./install/uninstall.sh
+```
+
+It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailscale, remote desktop, and your history.
+
 ## After installing
 
 - Open **http://localhost:8088**, or **Network Command Center** in your apps menu.
@@ -199,24 +197,6 @@ Manual; Windows: Settings → Network → your network → DNS server assignment
   never in this folder.
 - Pi-hole, AdGuard Home and Tailscale are downloaded only from their official sources. AdGuard Home is checked against
   its published checksum; on Windows, Tailscale's installer must carry Tailscale's digital signature. If the ad blocker breaks name lookups, the installer undoes its DNS change.
-
-## Everyday commands (Linux)
-
-```
-./ncc status      is it running?
-./ncc restart     restart the dashboard
-./ncc logs        recent log lines
-./ncc backup      back up settings and history (keep the file private: it holds passwords)
-./ncc test        quick self-test
-```
-
-## Uninstall (Linux)
-
-```
-./install/uninstall.sh
-```
-
-It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailscale, remote desktop, and your history.
 
 ## AT&T gateways
 
@@ -279,6 +259,34 @@ The **Ask** box in the **Troubleshoot** tab can answer questions with Claude Cod
 It runs that program on this computer with your own sign-in. It only sends a snapshot of the measurements, with
 private details removed, and gives it no access to your files or commands. It only answers questions asked on this
 computer itself, so nobody using the dashboard from elsewhere can use your AI account.
+
+## Windows
+
+Everything above works the same on Windows; these are the Windows steps.
+
+### Install on Windows
+
+1. On this page click the green **Code** button, then **Download ZIP**.
+2. Right-click the ZIP → **Properties** → tick **Unblock** (if you see it) → **OK**. Then right-click → **Extract All**,
+   and put the folder somewhere it can stay, like `Documents\network-command-center`.
+3. Open the folder and double-click **`install-windows.cmd`**. If Windows shows "Windows protected your PC", click
+   **More info → Run anyway**.
+4. Pick a pack (the same choices as on Linux, with AdGuard Home as the ad blocker). The installer shows the full plan and
+   asks **"Go ahead?"** before it changes anything. If a step needs administrator rights (the ad blocker, Tailscale or
+   Remote Desktop), Windows asks **once**: click **Yes**.
+
+If you don't have Python, the installer adds it for you (Python 3.12 from python.org, through Windows' own `winget`).
+The dashboard starts by itself whenever you sign in to Windows, and **Network Command Center** appears in the Start
+menu. Everyday commands: open the folder in a terminal and type `.\ncc status`, `.\ncc restart`, `.\ncc logs` or
+`.\ncc backup`. To remove it, double-click **`uninstall-windows.cmd`**.
+
+### Good to know on Windows
+
+- **AT&T gateways:** AdGuard Home can't hand out addresses on Windows, so set the DNS on each device instead (the
+  dashboard shows how). For the whole home at once on AT&T, use a Raspberry Pi or Linux computer with Pi-hole.
+- **Remote Desktop** only works on Windows Pro, Education and Enterprise. You sign in with your normal Windows account.
+- **Wi-Fi neighbors** on Windows 11 need Location turned on (Settings → Privacy & security → Location).
+- The dashboard runs while you're signed in. The ad blocker runs all the time.
 
 ## Found a bug?
 
