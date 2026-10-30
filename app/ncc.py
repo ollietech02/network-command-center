@@ -1561,6 +1561,53 @@ def kick_streams():
         LIVE_COND.notify_all()
 
 
+# ---- "Pause": while you're using the computer yourself, switch off public web access and automatic speed tests, then
+# put them back by themselves. Monitoring, Pi-hole and phone alerts keep running. Only from the computer itself.
+PAUSE_MIN = (30, 60, 120, 240, 0)  # 0 = until you press Resume
+
+
+def paused():
+    v = kv_get("pause", {}) or {}
+    return v if v.get("on") and (not v.get("until") or v["until"] > time.time()) else {}
+
+
+def set_pause(on, minutes, who):
+    if on:
+        if minutes not in PAUSE_MIN:
+            raise ValueError("Pick 30 minutes, 1, 2 or 4 hours, or until you resume.")
+        if paused():
+            raise ValueError("Already paused.")
+        s = settings()
+        kv_set("pause", {"on": True, "until": int(time.time() + minutes * 60) if minutes else 0, "by": who,
+                         "web_was": bool(s.get("web_access"))})
+        if s.get("web_access"):
+            s["web_access"] = False
+            kv_set("settings", s)
+            kick_streams()
+        how = f"for {minutes // 60} h" if minutes >= 60 else f"for {minutes} min" if minutes else "until resumed"
+        event("info", "pause", f"Paused {how} by {who}: public web access off, no automatic speed tests.", False)
+    else:
+        resume(f"by {who}")
+
+
+def resume(why):
+    v = kv_get("pause", {}) or {}
+    if not v.get("on"):
+        return
+    kv_set("pause", {})
+    if v.get("web_was") and web_users():
+        s = settings()
+        s["web_access"] = True
+        kv_set("settings", s)
+    event("info", "pause", f"Resumed {why}" + (": public web access is back on." if v.get("web_was") else "."), False)
+
+
+def pause_tick():
+    v = kv_get("pause", {}) or {}
+    if v.get("on") and v.get("until") and v["until"] <= time.time():
+        resume("automatically (time was up)")
+
+
 # ---- web access (Tailscale Funnel: a public https address, no Tailscale needed on the computer). Approved by the user
 # 2026-10-21 with full control. One username + password per family member (scrypt hashes in data/.web_logins, added
 # and removed only on the laptop), a lockout after 5 wrong tries in an hour, a phone alert on every web sign-in, and
@@ -2123,6 +2170,10 @@ def loop():
             collect()
         except Exception as e:
             log("collect error:", repr(e))
+        try:
+            pause_tick()
+        except Exception as e:
+            log("pause tick error:", repr(e))
         if t0 >= next_dev:
             for fn in (refresh_devices, scan_auth_log, scan_listeners):
                 try:
@@ -2389,7 +2440,7 @@ def maybe_nightly_speedtest():
     """Scheduled speed test, as set in Tools & settings: every N minutes, once a day at a set time, or off.
     ~45 MB per test. Skipped while the internet is down or a test is already running."""
     st = settings()
-    if st["speedtest_mode"] == "off" or SPEED["running"] or not (STATE.get("last") or {}).get("internet"):
+    if st["speedtest_mode"] == "off" or paused() or SPEED["running"] or not (STATE.get("last") or {}).get("internet"):
         return
     if st["speedtest_mode"] == "every" and st.get("speed_quiet_on"):
         lt = time.localtime()
@@ -3026,8 +3077,8 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")  # Display mode shows /wall in a frame on the dashboard; other sites can't
+        self.send_header("Content-Security-Policy", ("default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:") + "; frame-ancestors 'self'")
         self.end_headers()
         self.wfile.write(body)
 
@@ -3065,6 +3116,10 @@ class H(BaseHTTPRequestHandler):
         if path in ("/manifest.webmanifest", "/icon.svg"):
             f = STATIC / path.lstrip("/")
             return self._send(200, f.read_bytes(), "application/manifest+json" if path.endswith("manifest") else "image/svg+xml")
+        if path == "/api/pause":
+            v = paused()
+            return self._send(200, {"on": bool(v), "until": v.get("until"), "by": v.get("by"), "minutes": PAUSE_MIN,
+                                    "may": not self._remote()})
         if path == "/api/health":
             age = time.time() - (STATE["last"].get("ts") or STATE["started"])
             return self._send(200 if age < 3 * int(CFG["INTERVAL"]) else 503, {"ok": age < 3 * int(CFG["INTERVAL"]), "age": round(age), "version": VERSION})
@@ -3280,6 +3335,14 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"answer": rule_answer("next") + (f"\n\n({why})" if body.get("ai") else ""), "source": "rules"})
             if path == "/api/action":
                 return self._send(200, action(str(body.get("name")), str(body.get("arg", ""))[:255]))
+            if path == "/api/pause":
+                if self._remote():
+                    return self._send(403, {"error": "Pause and Resume work on the computer itself."})
+                try:
+                    set_pause(body.get("on") is True, body.get("minutes"), "the computer")
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                return self._send(200, {"ok": True})
             if path == "/api/remote/pin":
                 if self._remote():
                     return self._send(403, {"error": "The PIN can only be changed on the laptop itself."})
@@ -3361,6 +3424,8 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "The AI assistant can only be chosen on the computer itself."})
                 if not self._manager() and {"web_access", "web_session_h", "pin_session_h"} & set(body):
                     return self._send(403, {"error": "Only on the laptop or one of your Tailscale devices (not from the open web)."})
+                if body.get("web_access") is True and paused():
+                    return self._send(400, {"error": "The dashboard is paused. Press Resume first."})
                 if body.get("web_access") is True and not web_users():
                     return self._send(400, {"error": "Add at least one username and password first."})
                 try:

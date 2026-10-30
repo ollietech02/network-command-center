@@ -93,6 +93,9 @@ every default.
   many devices are using the ad blocker so you can tell when it's working. The short version is below.
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
 - **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
+- **Using the computer yourself for a while?** Press **⏸ Pause** at the top of the dashboard (on the computer itself).
+  Public web access and automatic speed tests switch off for 30 minutes to 4 hours (or until you press **Resume**) and
+  come back by themselves. Monitoring, the ad blocker and alerts keep running.
 - **Something wrong?** See [Found a bug?](#found-a-bug) below.
 
 ## Whole-home ad blocking

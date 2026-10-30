@@ -148,6 +148,9 @@ button:hover{border-color:var(--cyan);color:var(--cyan)}
 #tvmode{font:12px var(--mono);letter-spacing:.04em;background:var(--field);color:var(--ink);border:1px solid var(--line2);border-radius:4px;padding:6px 10px;text-decoration:none;white-space:nowrap}
 /* view-only web accounts: the server refuses changes; this greys out the controls so it's clear up front */
 #vo-banner{display:none}
+#pause-bar{display:none;grid-column:1/-1;background:var(--warnbg);border:1px solid var(--warn);color:var(--strong);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
+#pause-bar.show{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#pause-bar b{color:var(--warn)}
 body.viewonly #vo-banner{display:block;background:var(--warnbg);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
 body.viewonly main section:not(.vo-ok) :is(button,select,input,textarea):not([data-copy]):not(#ra-out):not(#dev-f):not(#set-theme):not(#set-chart){opacity:.4;pointer-events:none}
 .al-h{font:600 13px var(--mono);letter-spacing:.06em;color:var(--cyan);margin:18px 0 4px}
@@ -313,7 +316,7 @@ tr.edrow td{background:var(--sunk)}
   <div class="brand"><b>NCC</b> // Network Command Center <span id="ver" class="sub"></span></div>
   <span id="overall" class="chip info"><span class="dot"></span>Initializing</span>
   <span id="live" class="chip live-chip stale" title="Live stream status"><span class="dot"></span>Connecting</span>
-  <div class="hdr-right"><div class="clock" aria-live="off"><b id="clock-t">--:--:--</b><span id="clock-d"></span></div><span id="updated">—</span><button id="refresh" title="Run all checks now">⟳ Re-check</button><button id="hdr-out" title="Sign this browser out" hidden>⎋ Log out</button><a id="tvmode" href="/wall" title="Big read-only screen for a TV or spare monitor, opens in full screen">▣ Display mode</a><button id="fs" title="Full screen (press F; Esc to leave)">⛶ Full screen</button></div>
+  <div class="hdr-right"><div class="clock" aria-live="off"><b id="clock-t">--:--:--</b><span id="clock-d"></span></div><span id="updated">—</span><button id="refresh" title="Run all checks now">⟳ Re-check</button><button id="pause-btn" title="Using the computer yourself for a while? Switch off public web access and automatic speed tests, and have them come back by themselves" hidden>⏸ Pause</button><button id="hdr-out" title="Sign this browser out" hidden>⎋ Log out</button><a id="tvmode" href="/wall" title="Big read-only screen for a TV or spare monitor, opens in full screen">▣ Display mode</a><button id="fs" title="Full screen (press F; Esc to leave)">⛶ Full screen</button></div>
   <nav class="views" aria-label="Dashboards">
     <a href="#/" data-view="overview">Overview</a><a href="#/internet" data-view="internet">Internet</a>
     <a href="#/devices" data-view="devices">Devices <span class="bd" id="bd-devices"></span></a><a href="#/pihole" data-view="pihole">Pi-hole <span class="bd" id="bd-pihole"></span></a>
@@ -321,6 +324,7 @@ tr.edrow td{background:var(--sunk)}
   </nav>
 </header>
 <main>
+<div id="pause-bar" role="status"></div>
 <div id="vo-banner">👁 View-only account: you can look at everything and use the diagnostic tools, but you can't change anything.</div>
   <!-- status tiles -->
   <section class="panel tile c2" data-v="only devices" data-span="devices:4"><h2>Devices</h2><div id="t-dev"></div></section>
@@ -860,6 +864,33 @@ function rdUI(r){
       <li>User account: exactly <b>${esc(d.user||"remote")}</b> (nothing in front of it).</li>
       <li>Accept the certificate warning the first time.</li></ol></div></div>`;
 }
+// ---- Pause: while you use the computer yourself, public web access and automatic speed tests are off.
+// Monitoring, Pi-hole and phone alerts keep running. Only on the computer itself.
+let PAUSE={};
+async function pauseUI(menu){
+  const r=await api("/api/pause");if(!r||r.error)return;PAUSE=r;
+  const bar=$("#pause-bar"),btn=$("#pause-btn");btn.hidden=!r.may||r.on;
+  if(r.on){
+    const until=r.until?"until "+new Date(r.until*1000).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"until you resume";
+    bar.innerHTML=`<span><b>⏸ PAUSED</b> ${until}: public web access and automatic speed tests are off. Monitoring, Pi-hole and alerts keep running.</span>${r.may?`<button id="pause-resume">▶ Resume now</button>`:""}`;
+    bar.className="show";
+  }else if(menu){
+    bar.innerHTML=`<span><b>⏸ Pause for</b></span>${r.minutes.map(m=>`<button data-pause="${m}">${m?(m>=60?m/60+" h":m+" min"):"Until I resume"}</button>`).join("")}<button id="pause-cancel">Cancel</button>
+      <span class="sm" style="width:100%">Turns off public web access (web visitors are signed out) and automatic speed tests, then turns web access back on by itself when the time is up. Monitoring, Pi-hole and phone alerts keep running.</span><span class="sm" id="pause-msg"></span>`;
+    bar.className="show";
+  }else{bar.className="";bar.innerHTML=""}
+}
+document.addEventListener("click",async e=>{
+  const t=e.target;
+  if(t.id==="pause-btn")return pauseUI(true);
+  if(t.id==="pause-cancel")return pauseUI(false);
+  if(t.id!=="pause-resume"&&!t.dataset.pause)return;
+  t.disabled=true;
+  const r=await api("/api/pause",t.id==="pause-resume"?{on:false}:{on:true,minutes:Number(t.dataset.pause)});
+  if(r&&r.error){const m=$("#pause-msg");if(m)m.textContent=r.error;else alert(r.error);t.disabled=false;return}
+  pauseUI(false);
+});
+pauseUI(false);setInterval(()=>{if(!document.hidden&&!document.querySelector("#pause-bar [data-pause]"))pauseUI(false)},30000);
 // ---- Web access card: family username/password accounts for the public (Tailscale Funnel) address. Laptop or Tailscale + PIN only.
 function webUI(r){
   if(!r.you_manage){$("#wa").innerHTML=`<p class="sm">Web access accounts and the on/off switch can only be changed on the laptop or one of your Tailscale devices.</p>`;return}
@@ -968,6 +999,7 @@ const WHY=[
   {m:/^web-signin$/,lvl:"warn",t:"Web sign-in",what:"Someone signed in to the dashboard from a web browser (not through Tailscale), with the username shown.",fix:["If it was you or your family, nothing to do.","If not: in Security → Web access, remove that account or press Turn off (Security tab → Web access)."]},
   {m:/^web-signin-fail$/,lvl:"warn",t:"Wrong web sign-in",what:"Someone typed a wrong username or password on the web sign-in page. After 5 in an hour, web sign-in locks for an hour.",fix:["If it was a family member mistyping, ignore it (Unlock now is in Security → Web access).","If it keeps happening, someone may be guessing: turn web access off."]},
   {m:/^remote-desktop$/,lvl:"info",t:"Remote desktop from the internet",what:"An older note: remote desktop was switched on or off for the open internet. That switch has been removed; remote desktop now only works from your home Wi-Fi and Tailscale devices.",fix:["Nothing to do."]},
+  {m:/^pause$/,lvl:"info",t:"Dashboard paused or resumed",what:"Someone on the computer pressed Pause (public web access and automatic speed tests off for a while) or it resumed.",fix:["Nothing to do. Press Resume now in the yellow bar at the top to end a pause early."]},
   {m:/^web-access$/,lvl:"info",t:"Web access change",what:"Web access was changed: an account added, removed or changed, someone signed out, the lock cleared, or the public address switched (on the laptop or a Tailscale device).",fix:["Nothing to do if it was you."]},
   {m:/^new-device$/,lvl:"warn",t:"New device joined",what:"A device the dashboard hasn't seen before connected. Often it's a phone that changed its private address, or a guest.",fix:["Find it in the Devices tab. If it's yours, give it a name.","If you don't know it, you can block it there. Don't assume it's bad: phones make new private addresses."]},
   {m:/^internet-outage$/,lvl:"crit",t:"Internet outage",what:"The internet stopped answering for two checks in a row.",fix:["Same as \"Internet down, router OK\" or \"Gateway unreachable\" above, depending on the cause it lists."]},
@@ -1607,7 +1639,7 @@ function tick(){const d=new Date();$("#clock-t").textContent=d.toLocaleTimeStrin
   $("#clock-d").textContent=d.toLocaleDateString([], {weekday:"long",month:"long",day:"numeric",year:"numeric"})}
 tick();setInterval(tick,1000);
 // ---- full screen: button or the F key (Esc or F again to leave)
-// The desktop app starts in the browser's own full screen (--start-fullscreen); only F11 can leave that.
+// The desktop app opens as a normal window; F11 (the browser's own full screen) can only be left with F11 again.
 const winFS=()=>!document.fullscreenElement&&(matchMedia("(display-mode: fullscreen)").matches||(innerWidth>=screen.width&&innerHeight>=screen.height));
 function fsLabel(){$("#fs").textContent=document.fullscreenElement?"✕ Exit full screen":winFS()?"✕ Exit: press F11":"⛶ Full screen"}
 function toggleFS(){if(document.fullscreenElement)document.exitFullscreen();
