@@ -227,21 +227,58 @@ status pages: whole-home internet speed, data usage, and the device list. Other 
 
 `config/ncc.env` holds the settings; `config/ncc.env.example` explains each one. After changing it, run `./ncc restart`.
 
-## Get help from your own AI
+## Connect your AI
 
-Bring whichever AI assistant you already use. Nobody shares an account, and you never need one from this project.
+Bring whichever AI assistant you already use. It always runs with **your own** account: nobody shares one, and this
+project never needs one. There are three ways to link an AI, from easiest to most powerful.
 
-- **Any AI (even a chat app on your phone):** in the dashboard, **Troubleshoot → Copy for my AI**. It copies a health
-  report with passwords and private details removed, plus instructions. Paste it into Claude, ChatGPT, Gemini, Copilot
-  or any other assistant and describe the problem.
-- **AI coding tools that can work on your computer** (Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot and others):
-  open the tool in the dashboard folder and describe the problem, for example *"the dashboard says DNS is failing, help
-  me fix it"*. They automatically read [`AGENTS.md`](AGENTS.md), which explains how everything works, the commands to
-  use, and the safety rules (look first, ask before changing anything, never show passwords). The health report on its
-  own: `./ncc doctor` (Windows: `ncc doctor`).
-- **The "Ask" box in the Troubleshoot tab:** pick your assistant in **Tools & settings → AI assistant** (Claude Code,
-  Codex or Gemini CLI). It uses that program on this computer with your own sign-in, sends it only a snapshot of the
-  measurements with private details removed, and only answers questions asked on this computer.
+### 1. Any AI chat app (ChatGPT, Claude, Gemini, Copilot...): nothing to install
+
+1. In the dashboard, open **Troubleshoot** and press **Copy for my AI**. It copies a health report with passwords
+   and private details removed, plus instructions for the AI.
+2. Paste it into your AI chat (on your computer or phone) and describe the problem.
+
+### 2. An AI that can work on your computer: it can check and fix things with you
+
+These tools run in a terminal and can look around the dashboard folder. Each one reads this project's guide for AIs
+([`AGENTS.md`](AGENTS.md)) by itself: how everything works, which commands to use, and the safety rules (look first,
+ask before changing anything, never show passwords).
+
+| AI | Install | Sign in | Reads the guide from |
+|---|---|---|---|
+| **Claude Code** (Anthropic) | Linux/Mac: `curl -fsSL https://claude.ai/install.sh \| bash`<br>Windows (PowerShell): `irm https://claude.ai/install.ps1 \| iex` | Run `claude` and follow the link | `CLAUDE.md` |
+| **Codex** (OpenAI) | `npm install -g @openai/codex` | Run `codex` and sign in with ChatGPT | `AGENTS.md` |
+| **Gemini CLI** (Google) | `npm install -g @google/gemini-cli` | Run `gemini` and sign in with Google | `GEMINI.md` |
+| **GitHub Copilot** | In VS Code: the Copilot extension | Your GitHub account | `.github/copilot-instructions.md` |
+| **Cursor** | [cursor.com](https://cursor.com) | Your Cursor account | `AGENTS.md` |
+
+The `npm` commands need [Node.js](https://nodejs.org) (version 20 or newer). Some of these need a paid plan with that
+company. Check its own site before you sign up: this project never charges anything.
+
+Then open the tool **in the dashboard folder** and say what's wrong, for example:
+
+```
+cd network-command-center
+claude          (or: codex, gemini)
+```
+
+> *"The dashboard says DNS is failing. Help me fix it."*
+
+The health report on its own: `./ncc doctor` (Windows: `ncc doctor`).
+
+### 3. The "Ask" box inside the dashboard
+
+The **Ask** box in the **Troubleshoot** tab can answer questions with Claude Code, Codex or Gemini CLI.
+
+1. Install one of them and sign in once (see the table above).
+2. On the computer running the dashboard, open **Tools & settings → AI assistant** and pick it. It says
+   "(not installed)" if the dashboard can't find it.
+3. In **Troubleshoot**, type a question in plain words and press the button, which now says **Ask Claude Code**
+   (or Codex, or Gemini CLI). With no AI picked it says **Ask (rules)** and answers from built-in checks.
+
+It runs that program on this computer with your own sign-in. It only sends a snapshot of the measurements, with
+private details removed, and gives it no access to your files or commands. It only answers questions asked on this
+computer itself, so nobody using the dashboard from elsewhere can use your AI account.
 
 ## Found a bug?
 
