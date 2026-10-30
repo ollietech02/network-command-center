@@ -93,4 +93,3 @@ router_is_att() {
   [ -n "${GW_IP:-}" ] && curl -fsS -m 4 "http://$GW_IP/cgi-bin/sysinfo.ha" 2>/dev/null | grep -q "Model Number"
 }
 
-has_gnome_rdp() { have grdctl && systemctl list-unit-files gnome-remote-desktop.service >/dev/null 2>&1; }

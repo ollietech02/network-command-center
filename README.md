@@ -85,6 +85,17 @@ Microsoft, Apple or GitHub), click **Connect**, and the installer carries on by 
 No menu: `./install/install.sh --pack shield` (packs: `dashboard`, `shield`, `everything`). Add `--yes` to accept
 every default.
 
+**Remote desktop on Linux:** the installer picks the tool that suits your desktop. Your sign-in details go in
+`remote-login.txt` in your home folder (only you can read it), and the dashboard's **Security** tab shows how to
+connect. It's reachable from your home network and Tailscale, never the open internet.
+
+| Your computer | What the installer turns on | How you connect |
+|---|---|---|
+| Ubuntu 24.04 or newer, Debian 13 with GNOME | GNOME's built-in **Remote Login** | Any RDP app (Windows "Remote Desktop Connection", the Windows App, Remmina). You start at the login screen. |
+| **Raspberry Pi OS** with desktop | Its built-in **VNC** screen sharing | A VNC app such as RealVNC Viewer (free). You see the Pi's screen as it is. |
+| Debian 12, Linux Mint, or Xfce, MATE, KDE desktops | **xrdp**, from your system's own packages | Any RDP app. It opens its own desktop session, so sign out at the computer first. |
+| No desktop (servers, Raspberry Pi OS **Lite**) | Nothing: there's no screen to show | |
+
 ## After installing
 
 - Open **http://localhost:8088**, or **Network Command Center** in your apps menu.

@@ -52,7 +52,7 @@ STYLE=scifi BLOCKER=none TAILSCALE=0 RDP=0 CONTROLS=0
 case "$PACK" in
   dashboard) ;;
   shield) BLOCKER=pihole ;;
-  everything) BLOCKER=pihole TAILSCALE=1 CONTROLS=1; has_gnome_rdp && RDP=1 ;;
+  everything) BLOCKER=pihole TAILSCALE=1 CONTROLS=1; [ "$(rdp_kind)" != none ] && RDP=1 ;;
   custom)
     say "  Pictures of each look: https://github.com/ollietech02/network-command-center#looks"
     STYLE=$(choose "Which look?" \
@@ -65,7 +65,7 @@ case "$PACK" in
       "none|None")
     echo
     ask "Install Tailscale, so you can open the dashboard from your phone anywhere? (free account)" y && TAILSCALE=1
-    if has_gnome_rdp; then ask "Turn on remote desktop (control this computer from another one)?" n && RDP=1; fi
+    if [ "$(rdp_kind)" != none ]; then ask "Turn on remote desktop (control this computer from another one)?" n && RDP=1; fi
     ask "Show restart buttons (dashboard, ad blocker, this computer) on the dashboard?" y && CONTROLS=1
     ;;
   *) die "Unknown pack '$PACK'. Use: dashboard, shield, everything or custom." ;;
@@ -83,7 +83,7 @@ case "$BLOCKER" in
   adguard) say "  • Install AdGuard Home. This computer's own lookups go through it. Your router is NOT changed." ;;
 esac
 [ "$TAILSCALE" = 1 ] && say "  • Install Tailscale and help you make a free account (private access from your phone)"
-[ "$RDP" = 1 ] && say "  • Turn on remote desktop, reachable only from your home network and Tailscale"
+[ "$RDP" = 1 ] && say "  • $(rdp_plan)"
 say "  • Nothing is opened to the internet, and no router or firewall settings are changed."
 echo
 ask "Go ahead?" y || { say "  Nothing was changed."; exit 0; }

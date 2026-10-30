@@ -28,10 +28,22 @@ fi
 if have tailscale && ask "Uninstall Tailscale too? (your phone loses access to this computer)" n; then
   sudo tailscale logout 2>/dev/null; sudo apt-get remove -y -qq tailscale >/dev/null && ok "Tailscale removed"
 fi
-if have grdctl && ask "Turn off remote desktop?" n; then
-  sudo grdctl --system rdp disable && sudo systemctl disable --now gnome-remote-desktop.service >/dev/null 2>&1
-  rm -f "$HOME/remote-login.txt"; ok "Remote desktop off"
-fi
+# Remote desktop: whichever the installer turned on (RDP_KIND in config/ncc.env; older installs were always GNOME)
+RDP_KIND="$(sed -n 's/^RDP_KIND=//p' "$DIR/config/ncc.env" 2>/dev/null)"
+[ "$(sed -n 's/^REMOTE_DESKTOP=//p' "$DIR/config/ncc.env" 2>/dev/null)" = 1 ] && RDP_KIND="${RDP_KIND:-gnome}"
+case "$RDP_KIND" in
+  gnome) if have grdctl && ask "Turn off remote desktop?" n; then
+           sudo grdctl --system rdp disable && sudo systemctl disable --now gnome-remote-desktop.service >/dev/null 2>&1
+           rm -f "$HOME/remote-login.txt"; ok "Remote desktop off"
+         fi ;;
+  vnc)   if have raspi-config && ask "Turn off remote desktop (VNC)?" n; then
+           sudo raspi-config nonint do_vnc 1 && { rm -f "$HOME/remote-login.txt"; ok "Remote desktop off"; }
+         fi ;;
+  xrdp)  if have xrdp && ask "Uninstall remote desktop (xrdp)?" n; then
+           sudo systemctl disable --now xrdp >/dev/null 2>&1
+           sudo apt-get remove -y -qq xrdp >/dev/null && { rm -f "$HOME/remote-login.txt"; ok "Remote desktop removed"; }
+         fi ;;
+esac
 if ask "Delete the dashboard's history, accounts and saved passwords? (can't be undone)" n; then
   rm -rf "$DIR/data" "$HOME/.config/ncc"; ok "Deleted"
 fi

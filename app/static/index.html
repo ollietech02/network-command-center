@@ -854,15 +854,25 @@ async function remoteUI(){
 function rdUI(r){
   const d=r.rdp||{},host=(r.url||"").replace(/^https:\/\//,""),short=host.split(".")[0];
   $("#rd").closest("section").classList.toggle("feat-off",!d.on);if(!d.on)return;
-  const code=v=>`<code class="big-code">${esc(v)}</code> <button data-copy="${esc(v)}">Copy</button>`;
+  const code=v=>`<code class="big-code">${esc(v)}</code> <button data-copy="${esc(v)}">Copy</button>`,u=esc(d.user||"remote");
+  // what to sign in with and which app to use, per kind (the installer picks one to suit the desktop)
+  const how={
+    gnome:{login:`Username <b>${u}</b> + the remote desktop password in <code>remote-login.txt</code> in your home folder, then this computer's normal password at its login screen.`,
+           app:`Windows "Remote Desktop Connection", the Windows App (Mac, iPhone, Android) or Remmina`},
+    xrdp:{login:`Username <b>${u}</b> + your normal password for this computer. It opens its own desktop session, separate from the screen, so sign out at the computer first.`,
+          app:`Windows "Remote Desktop Connection", the Windows App (Mac, iPhone, Android) or Remmina`},
+    vnc:{login:`Username <b>${u}</b> + your normal password for this Raspberry Pi. You see the Pi's screen exactly as it is.`,
+         app:`a VNC app: RealVNC Viewer (free, Windows, Mac, iPhone, Android) or TigerVNC`},
+    windows:{login:`Your Windows account <b>${u}</b> and its password.`,
+             app:`Windows "Remote Desktop Connection", the Windows App (Mac, iPhone, Android) or Remmina`}}[d.kind]||{};
   $("#rd").innerHTML=`<div class="cols2"><div>
     <p>Works from your <b>home Wi-Fi</b>${host?" and from devices with <b>Tailscale</b> on":""}. It isn't reachable from the open internet.</p>
-    <p class="sm muted">Logins: username <b>${esc(d.user||"remote")}</b> + the remote desktop password you chose when installing, then this computer's normal password at its login screen.</p></div>
-    <div><b>How to connect (Windows "Remote Desktop Connection", the Windows App, or Remmina)</b><ol class="sm">
+    <p class="sm muted">${how.login||""}</p></div>
+    <div><b>How to connect (${how.app||"a remote desktop app"})</b><ol class="sm">
       <li>Computer / PC name:<br>${host?`with Tailscale on: ${code(short)} <span class="muted">(or ${esc(host)})</span><br>`:""}
         at home: ${d.lan_ip?code(d.lan_ip):"(this computer's address on your network)"}</li>
-      <li>User account: exactly <b>${esc(d.user||"remote")}</b> (nothing in front of it).</li>
-      <li>Accept the certificate warning the first time.</li></ol></div></div>`;
+      <li>User account: exactly <b>${u}</b> (nothing in front of it).</li>
+      ${d.kind==="vnc"?"":"<li>Accept the certificate warning the first time.</li>"}</ol></div></div>`;
 }
 // ---- Pause: while you use the computer yourself, public web access and automatic speed tests are off.
 // Monitoring, Pi-hole and phone alerts keep running. Only on the computer itself.

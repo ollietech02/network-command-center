@@ -35,6 +35,39 @@ jobs:
         run: "! grep -nP '[^\\x00-\\x7F]' install/windows/*.ps1"
       - name: Parsing and redaction tests
         run: python3 -I tests/test_parsing.py
+      - name: Remote desktop choice (pretend computers)
+        run: bash tests/test_rdp_kind.sh
+
+  debian:
+    name: Remote desktop on ${{ matrix.image }}
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12
+            gnome_login: "no"   # GNOME 43: no Remote Login, so the installer uses xrdp
+          - image: debian:13
+            gnome_login: "yes"  # GNOME 46 or newer
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Packages the installer uses exist and install
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xrdp gnome-remote-desktop >/dev/null
+          getent passwd xrdp && getent group ssl-cert
+          adduser xrdp ssl-cert
+          id -nG xrdp | grep -qw ssl-cert
+      - name: GNOME Remote Login is there only where expected
+        run: |
+          if grdctl --help 2>&1 | grep -q -- '--system'; then has=yes; else has=no; fi
+          echo "grdctl --system: $has (expected ${{ matrix.gnome_login }})"
+          [ "$has" = "${{ matrix.gnome_login }}" ]
+      - name: A container has no desktop, so the installer skips remote desktop here
+        run: bash -c '. install/lib/common.sh; . install/lib/remote-desktop.sh; k=$(rdp_kind); echo "$k"; [ "$k" = none ]'
 
   windows:
     name: Windows installer (${{ matrix.os }})

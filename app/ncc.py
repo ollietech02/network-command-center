@@ -73,7 +73,7 @@ CFG = {
     "GATEWAY": "", "WAN_TARGET": "1.1.1.1", "HTTPS_URL": "https://www.google.com/generate_204",
     "DNS_TEST_NAME": "example.com", "PIHOLE_URL": "", "PIHOLE_CONTROLS": "0", "PIHOLE_LISTS": "0", "PIHOLE_BLOCK": "0", "SYSTEM_CONTROLS": "0",
     "AI_ENABLED": "0", "AI_ASSISTANT": "", "AI_MODEL": "", "NTFY_URL": "", "DESKTOP_NOTIFY": "1", "SPEEDTEST_EVERY_MIN": "60",
-    "RETENTION_DAYS": "30", "ADGUARD_URL": "", "ROUTER": "generic", "STYLE": "scifi", "REMOTE_DESKTOP": "0", "RDP_USER": "remote",
+    "RETENTION_DAYS": "30", "ADGUARD_URL": "", "ROUTER": "generic", "STYLE": "scifi", "REMOTE_DESKTOP": "0", "RDP_KIND": "gnome", "RDP_USER": "remote",
 }
 CFG.update(load_env(BASE / "config" / "ncc.env"))
 SECRETS = load_env(Path.home() / ".config" / "ncc" / "secrets.env")
@@ -3155,7 +3155,7 @@ class H(BaseHTTPRequestHandler):
             st["you_are_web"] = self._public()
             st["you_role"] = session_role(self._cookie()) if self._remote() else "edit"
             st["you_manage"] = self._manager()
-            st["rdp"] = {"on": CFG["REMOTE_DESKTOP"] == "1", "user": CFG["RDP_USER"], "lan_ip": local_iface().get("ip")}
+            st["rdp"] = {"on": CFG["REMOTE_DESKTOP"] == "1", "kind": "windows" if WIN else CFG["RDP_KIND"], "user": CFG["RDP_USER"], "lan_ip": local_iface().get("ip")}
             if self._manager():  # account names and lock state: the laptop, or your own Tailscale devices with the PIN
                 st.update({"web_users": [{"user": k, "created": v.get("created"), "role": v.get("role", "edit"),
                                           "emails": v.get("emails") or []}

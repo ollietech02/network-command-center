@@ -135,7 +135,7 @@ def build(status, cfg, secrets_keys, extra=None, logs=None):
     add("")
     add("## Settings (config/ncc.env, secrets left out)")
     keys = ("PORT", "BIND", "STYLE", "ROUTER", "PIHOLE_URL", "ADGUARD_URL", "PIHOLE_CONTROLS", "PIHOLE_LISTS", "PIHOLE_BLOCK",
-            "SYSTEM_CONTROLS", "AI_ASSISTANT", "AI_ENABLED", "REMOTE_DESKTOP", "INTERVAL", "WAN_TARGET", "GATEWAY")
+            "SYSTEM_CONTROLS", "AI_ASSISTANT", "AI_ENABLED", "REMOTE_DESKTOP", "RDP_KIND", "INTERVAL", "WAN_TARGET", "GATEWAY")
     add("- " + ", ".join(f"{k}={redact(cfg[k])}" for k in keys if cfg.get(k) not in (None, "")))
     add(f"- ALLOWED_HOSTS set: {'yes' if cfg.get('ALLOWED_HOSTS') else 'no'}")
     add(f"- Saved secrets (names only): {', '.join(sorted(secrets_keys)) or 'none'}")
