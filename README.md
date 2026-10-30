@@ -1,6 +1,6 @@
 # NCC // Network Command Center
 
-A home network dashboard that runs on a spare computer or Raspberry Pi. It shows you at a glance whether the
+A home network dashboard that runs on any computer or Raspberry Pi. It shows you at a glance whether the
 internet is working, how fast it is, which devices are on your Wi-Fi, how many ads were blocked, and how the computer
 itself is doing. It sends phone alerts when something breaks.
 
@@ -31,7 +31,7 @@ Pick one when you install, and change it any time in **Tools & settings**. Each 
 | **Windows 10 (1809 or newer) and 11** | AdGuard Home | Pi-hole needs Linux. CPU temperature isn't shown. |
 | **Mac** | | On the way. |
 
-The computer should stay on and connected (a spare laptop or a Raspberry Pi is ideal).
+The computer should stay on and connected (a laptop, a desktop or a Raspberry Pi all work).
 
 ## Install on Windows
 
