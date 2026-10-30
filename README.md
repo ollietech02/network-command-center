@@ -227,22 +227,34 @@ ask before changing anything, never show passwords).
 | AI | Install | Sign in | Reads the guide from |
 |---|---|---|---|
 | **Claude Code** (Anthropic) | Linux/Mac: `curl -fsSL https://claude.ai/install.sh \| bash`<br>Windows (PowerShell): `irm https://claude.ai/install.ps1 \| iex` | Run `claude` and follow the link | `CLAUDE.md` |
-| **Codex** (OpenAI) | `npm install -g @openai/codex` | Run `codex` and sign in with ChatGPT | `AGENTS.md` |
-| **Gemini CLI** (Google) | `npm install -g @google/gemini-cli` | Run `gemini` and sign in with Google | `GEMINI.md` |
-| **GitHub Copilot** | In VS Code: the Copilot extension | Your GitHub account | `.github/copilot-instructions.md` |
-| **Cursor** | [cursor.com](https://cursor.com) | Your Cursor account | `AGENTS.md` |
+| **Codex** (OpenAI) | Linux, Mac and Windows: `npm install -g @openai/codex` | Run `codex` and sign in with ChatGPT | `AGENTS.md` |
+| **Gemini CLI** (Google) | Linux, Mac and Windows: `npm install -g @google/gemini-cli` | Run `gemini` and sign in with Google | `GEMINI.md` |
+| **GitHub Copilot** | Install [VS Code](https://code.visualstudio.com), then its Copilot extension | Your GitHub account | `.github/copilot-instructions.md` |
+| **Cursor** | Download from [cursor.com](https://cursor.com) | Your Cursor account | `AGENTS.md` |
 
-The `npm` commands need [Node.js](https://nodejs.org) (version 20 or newer). Some of these need a paid plan with that
-company. Check its own site before you sign up: this project never charges anything.
+- **Same on Linux and Windows,** except Claude Code's install command. On Windows, type the commands in
+  **PowerShell**. Copilot (through VS Code) and Cursor are apps: their websites give you the right download.
+- The `npm` commands need [Node.js](https://nodejs.org) (version 20 or newer) first. On Windows, use the installer
+  from nodejs.org.
+- **Codex on Windows** is newer than on Linux and Mac. If it misbehaves, check OpenAI's Codex page.
+- Some of these need a paid plan with that company. Check its own site before you sign up: this project never
+  charges anything.
 
-Then open the tool **in the dashboard folder** and say what's wrong, for example:
+**Start the AI in the dashboard folder.** That's how it finds the guide by itself: there's no need to tell it to read
+anything. Started anywhere else, it won't see the guide. With VS Code or Cursor, open the dashboard folder
+(**File → Open Folder**).
 
 ```
-cd network-command-center
-claude          (or: codex, gemini)
+cd network-command-center                      (Windows: cd Documents\network-command-center)
+claude                                         (or: codex, gemini)
 ```
+
+Then say what's wrong, for example:
 
 > *"The dashboard says DNS is failing. Help me fix it."*
+
+**AI chat apps** (ChatGPT, Claude or Gemini on the web or a phone) can't see files on your computer, so they can't read
+the guide. Use **Copy for my AI** instead (way 1 above): the instructions are built into the text you paste.
 
 The health report on its own: `./ncc doctor` (Windows: `ncc doctor`).
 
