@@ -262,7 +262,8 @@ computer itself, so nobody using the dashboard from elsewhere can use your AI ac
 
 ## Windows
 
-Everything above works the same on Windows; these are the Windows steps.
+The parts above that are for everyone (After installing, ad blocking, Safe by default, Connect your AI) apply on Windows
+too. These are the Windows-only steps.
 
 ### Install on Windows
 
