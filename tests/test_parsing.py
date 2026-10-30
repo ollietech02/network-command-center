@@ -39,7 +39,7 @@ check("tailnet", R("open https://mypc.tail1234.ts.net"), "open https://[this com
 check("bearer", R("Authorization: Bearer abcdefghijkl"), "Authorization: Bearer [removed]")
 check("public v4", R("login from 104.37.27.64"), "login from [internet address]")
 check("public v6", R("from 2600:1700:1990:aaa0:2484:9b25:66c9:c8df x"), "from [internet address] x")
-check("private kept", R("gateway 192.168.1.254, tailscale 100.71.148.1"), "gateway 192.168.1.254, tailscale 100.71.148.1")
+check("private kept", R("gateway 192.168.1.254, tailscale 100.64.0.7"), "gateway 192.168.1.254, tailscale 100.64.0.7")
 check("time kept", R("at 10:55:25"), "at 10:55:25")
 
 # ---- Windows ping (reply lines always contain TTL= and <n>ms, whatever the language)
