@@ -27,7 +27,7 @@ pretend "" "" graphical.target 1;                                               
 pretend "raspi-config" "" graphical.target 1;                                        check "Raspberry Pi OS desktop" vnc
 pretend "raspi-config" "" graphical.target 0;                                        check "Raspberry Pi OS Lite" none
 pretend "" "" graphical.target 0;                                                    check "Server, no desktop (default target still graphical)" none
-pretend "grdctl" "Usage: grdctl [--system] COMMAND" multi-user.target 0;             check "GNOME 46+ installed, booting to text" gnome
+pretend "grdctl" "Usage: grdctl [--system] COMMAND" graphical.target 0;             check "GNOME remote desktop package but no login screen" none
 
 [ "$fail" = 0 ] && echo "all remote desktop checks passed"
 exit "$fail"

@@ -18,7 +18,7 @@ has_gnome_rdp() {
 
 rdp_kind() {
   if have raspi-config && has_desktop; then echo vnc
-  elif has_gnome_rdp; then echo gnome
+  elif has_gnome_rdp && has_desktop; then echo gnome  # Remote Login starts at GNOME's login screen, so it needs one
   elif has_desktop; then echo xrdp
   else echo none
   fi
