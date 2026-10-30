@@ -31,7 +31,7 @@ Pick one when you install, and change it any time in **Tools & settings**. Each 
 | **Windows 10 (1809 or newer) and 11** | AdGuard Home | Pi-hole needs Linux. CPU temperature isn't shown. |
 | **Mac** | | On the way. |
 
-The computer should stay on and connected (a laptop, a desktop or a Raspberry Pi all work).
+The computer should stay on and connected (a laptop, a desktop or a [Raspberry Pi](#raspberry-pi) all work).
 
 ## Install on Windows
 
@@ -95,6 +95,56 @@ connect. It's reachable from your home network and Tailscale, never the open int
 | **Raspberry Pi OS** with desktop | Its built-in **VNC** screen sharing | A VNC app such as RealVNC Viewer (free). You see the Pi's screen as it is. |
 | Debian 12, Linux Mint, or Xfce, MATE, KDE desktops | **xrdp**, from your system's own packages | Any RDP app. It opens its own desktop session, so sign out at the computer first. |
 | No desktop (servers, Raspberry Pi OS **Lite**) | Nothing: there's no screen to show | |
+
+## Raspberry Pi
+
+A Raspberry Pi makes a good always-on home for the dashboard: small, quiet, and cheap to leave running. It uses the
+Linux installer above, and everything works on it except where noted below.
+
+> Not tested on a real Raspberry Pi yet: the automatic tests run on regular PCs. If something goes wrong, please
+> [report it](#found-a-bug).
+
+**What you need**
+
+- A **Raspberry Pi 4 or 5** (the 2 GB model is plenty), its official power supply, and a good 32 GB microSD card.
+- A **network cable** to your router. Wi-Fi works, but a cable is steadier for something the whole home relies on.
+
+**Pick a version of Raspberry Pi OS**
+
+| | Raspberry Pi OS **Lite** | Raspberry Pi OS **with desktop** |
+|---|---|---|
+| Screen | None needed. It sits in a corner. | Plug in a monitor or TV (micro-HDMI on the Pi 4 and 5) |
+| Open the dashboard | From your phone or laptop (see step 5) | On the Pi itself, or from your phone or laptop |
+| Remote desktop | Not available (no desktop to show) | The Pi's built-in VNC screen sharing |
+| Good for | Lowest memory use | Showing **Display mode** on a TV |
+
+**Set it up**
+
+1. On any computer, install the free [Raspberry Pi Imager](https://www.raspberrypi.com/software/) and put Raspberry
+   Pi OS on the card. In its settings, turn on **SSH** and choose a username and password.
+2. Put the card in the Pi, plug in the network cable and power, and wait about a minute.
+3. From a terminal on your computer (Windows: PowerShell), connect to it, using the username you chose:
+   ```
+   ssh yourname@raspberrypi.local
+   ```
+4. Install, the same as on any Linux computer. Pick **3. Everything** if you want to open it from your phone:
+   ```
+   sudo apt install -y git
+   git clone https://github.com/ollietech02/network-command-center.git
+   cd network-command-center && ./install/install.sh
+   ```
+5. Open the dashboard. For safety it only opens on the computer it runs on, so from another device use one of these:
+   - **Tailscale** (easiest): with Tailscale on, open the address the installer showed you, on your phone or laptop.
+   - **SSH**: run `ssh -L 8088:127.0.0.1:8088 yourname@raspberrypi.local` on your computer, then open
+     http://localhost:8088 there.
+
+**Good to know**
+
+- **Only one ad blocker per home.** If another computer already runs Pi-hole or hands out addresses (DHCP), turn
+  that off before the Pi takes over, so the two don't fight.
+- **Speed tests on older Pis** (Pi 3 and earlier) top out around 100-300 Mbps because of their network port, even if
+  your internet is faster.
+- **CPU temperature** shows on the dashboard like on any Linux computer.
 
 ## After installing
 
