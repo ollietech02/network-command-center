@@ -173,7 +173,10 @@ changes your router, so you do this part yourself (about 5 minutes):
 1. Give this computer an address that never changes: a "DHCP reservation" in the router, or a manual address in
    Settings → Wi-Fi → ⚙ → IPv4.
 2. In the router's settings, find **DNS** (usually under LAN, DHCP or Advanced) and set **DNS 1** to this computer's
-   address. Leave DNS 2 empty.
+   address. For **DNS 2**, put your router's own address (or `1.1.1.1`) as a backup: then if this computer is off or
+   restarting, the internet keeps working, just without ad blocking. (Now and then a device may ask the backup even
+   while this computer is on, so the odd ad can slip through. For the strictest blocking, leave DNS 2 empty, but then
+   websites stop loading whenever this computer is off.)
 3. Turn Wi-Fi off and on on each device.
 
 **AT&T gateways (BGW210, BGW320) and others that hide the DNS setting:** the ad blocker hands out the addresses instead.
@@ -183,10 +186,21 @@ changes your router, so you do this part yourself (about 5 minutes):
    `192.168.1.253`, router `192.168.1.254`, lease time `7d`. In AdGuard Home it's Settings → DHCP settings.
 3. **Right after**, on the gateway (`http://192.168.1.254` → Home Network → Subnets & DHCP) set **DHCPv4 Server** to
    **Off**. It asks for the Device Access Code on the gateway's sticker.
-4. Turn Wi-Fi off and on on each device.
+4. **Recommended: add a backup DNS**, so the internet keeps working while this computer is off or restarting (ads just
+   aren't blocked until it's back). Pi-hole, in a terminal (if you already added your own lines to this setting, add
+   this one to them instead):
 
-While the computer is off, new devices can't join, and after 7 days the rest lose their connection, so keep it plugged
-in. **To undo:** turn the gateway's DHCPv4 Server back on, then turn off the ad blocker's DHCP. If a few devices still
+   ```
+   sudo pihole-FTL --config misc.dnsmasq_lines '["dhcp-option=option:dns-server,192.168.1.2,192.168.1.254"]'
+   ```
+
+   Use this computer's address and your gateway's. AdGuard Home: in `/opt/AdGuardHome/AdGuardHome.yaml`, under
+   `dhcp:` → `dhcpv4:` → `options:`, add `- 6 ips 192.168.1.2,192.168.1.254`, then run
+   `sudo systemctl restart AdGuardHome`. The dashboard's Whole-home setup guide shows these with your own addresses.
+5. Turn Wi-Fi off and on on each device.
+
+While the computer is off, new devices can't join (devices already connected keep working through the backup DNS, if
+you added one), and after 7 days the rest lose their connection, so keep it plugged in. **To undo:** turn the gateway's DHCPv4 Server back on, then turn off the ad blocker's DHCP. If a few devices still
 show ads, they may be using AT&T's DNS over IPv6: Home Network → IPv6 → Off.
 
 **One device only:** set that device's DNS to this computer's address (iPhone: Settings → Wi-Fi → ⓘ → Configure DNS →

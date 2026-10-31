@@ -1891,6 +1891,14 @@ def blocker_setup():
             out["clients"] = PIHOLE.stats().get("clients")
         except Exception:
             pass
+    if isinstance(PIHOLE, PiHole):
+        try:  # read-only: does Pi-hole hand out addresses, and does it give devices a backup DNS (the gateway)?
+            out["blocker_dhcp"] = bool(PIHOLE.v6("/api/config/dhcp")["config"]["dhcp"].get("active"))
+            lines = PIHOLE.v6("/api/config/misc/dnsmasq_lines")["config"]["misc"]["dnsmasq_lines"]
+            ips = [re.findall(r"\d+\.\d+\.\d+\.\d+", x) for x in lines if "dns-server" in x]
+            out["backup_dns"] = bool(ips and len(ips[0]) >= 2)
+        except Exception:
+            pass
     if shutil.which("nmcli") and iface.get("dev"):
         _, con = run(["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", iface["dev"]], 5)
         if con.strip():
@@ -1952,6 +1960,29 @@ def set_funnel(on):
     return st
 
 
+# While someone is signed in, GNOME holds a "shutdown" block, so "systemctl reboot" from this service is refused
+# ("Operation denied due to active block inhibitor", found 2026-10-30). Asking GNOME's session manager to restart works:
+# it lifts its own block, closes the session (apps get to save) and restarts.
+GNOME_REBOOT = ["gdbus", "call", "--session", "--dest", "org.gnome.SessionManager", "--object-path", "/org/gnome/SessionManager",
+                "--method", "org.gnome.SessionManager.RequestReboot"]
+
+
+def _linux_reboot_how():
+    code, _ = run(["gdbus", "call", "--session", "--dest", "org.gnome.SessionManager", "--object-path",
+                   "/org/gnome/SessionManager", "--method", "org.gnome.SessionManager.CanReboot"], 10)
+    if code == 0:
+        return "gnome"
+    try:  # no GNOME session: check first (--dry-run never restarts anything) so a refusal shows on the page
+        p = subprocess.run(["systemctl", "reboot", "--dry-run", "--check-inhibitors=yes"], capture_output=True, text=True, timeout=15)
+    except (subprocess.TimeoutExpired, OSError):
+        raise ValueError("Couldn't ask the system to restart. Restart it from its own menu.")
+    if p.returncode != 0:
+        why = re.search(r'reason is "([^"]{1,80})"', p.stderr or "")
+        raise ValueError("The computer refused to restart" + (f" (another program is blocking it: {why.group(1)})" if why else "")
+                         + ". Restart it from its own menu.")
+    return "systemd"
+
+
 def system_restart(what):
     """Fixed restart actions only (no user input reaches a command line)."""
     if CFG["SYSTEM_CONTROLS"] != "1":
@@ -1968,9 +1999,12 @@ def system_restart(what):
                         lambda: subprocess.Popen(["systemctl", "--user", "--no-block", "restart", "ncc.service"])).start()
         return {"ok": True, "msg": "Restarting the dashboard. It reloads by itself in about 10 seconds."}
     if what == "laptop":
+        how = "windows" if WIN else _linux_reboot_how()
         event("warn", "restart", "Laptop reboot requested from the dashboard.", False)
-        threading.Timer(2, W.reboot if WIN else lambda: subprocess.Popen(["systemctl", "reboot"])).start()
-        return {"ok": True, "msg": "Rebooting this laptop. Pi-hole and the dashboard are back in about 1-2 minutes."}
+        threading.Timer(2, W.reboot if WIN else (lambda: subprocess.Popen(GNOME_REBOOT)) if how == "gnome"
+                        else lambda: subprocess.Popen(["systemctl", "reboot"])).start()
+        return {"ok": True, "msg": "Rebooting this laptop. Pi-hole and the dashboard are back in about 1-2 minutes."
+                + (" If an app on the laptop has unsaved work, GNOME may wait for someone there to close it." if how == "gnome" else "")}
     raise ValueError("unknown restart target")
 
 
@@ -2177,8 +2211,8 @@ def collect():
         # separate kinds so the "back on" alert isn't swallowed by the 15-minute rate limit of the "off" one
         ph_down = not ph.get("ok")
         if ph_down and not _flags.get("pihole"):
-            event("crit", "pihole-off", "Pi-hole turned off. Devices are using the gateway's backup DNS, so ads aren't blocked "
-                  "and new devices can't join the Wi-Fi.", "phone")
+            event("crit", "pihole-off", "Pi-hole turned off. Devices with a backup DNS keep working without ad blocking; others can't "
+                  "load websites until it's back.", "phone")
         elif not ph_down and _flags.get("pihole"):
             event("info", "pihole-on", "Pi-hole is back on. Ad blocking is working again.", "phone")
         _flags["pihole"] = ph_down
@@ -3826,8 +3860,8 @@ def main():
         # systemd reports "stopping" only when the whole computer is shutting down or rebooting
         state = "" if WIN else run(["systemctl", "is-system-running"], 3)[1]
         if "stopping" in state:
-            event("warn", "laptop-off", "The laptop is shutting down or restarting. The Wi-Fi keeps working, but ads "
-                  "won't be blocked and new devices can't join until it's back.", "phone")
+            event("warn", "laptop-off", "The laptop is shutting down or restarting. The Wi-Fi keeps working; devices with a backup "
+                  "DNS keep loading websites without ad blocking until it's back.", "phone")
         STOP.set()
         threading.Thread(target=srv.shutdown).start()
     signal.signal(signal.SIGTERM, on_term)
