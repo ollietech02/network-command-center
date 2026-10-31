@@ -309,6 +309,12 @@ tr.edrow td{background:var(--sunk)}
 .guide td,.guide th{font-size:13.5px;padding:8px 12px}
 .guide mark{background:rgba(250,178,25,.28);color:var(--strong);border-radius:2px;padding:0 1px}
 .guide .nohit{color:var(--muted);padding:20px 0}
+.eyew{position:relative;display:inline-block;max-width:100%;vertical-align:middle}
+.eyew>input{padding-right:40px!important}
+button.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:34px;height:34px;margin:0;padding:0;border:0;border-radius:8px;
+  background:none;display:grid;place-items:center;cursor:pointer;opacity:.75}
+button.eye:hover,button.eye:focus-visible{opacity:1}
+button.eye,button.eye:hover{border:0;color:var(--muted)}button.eye:hover{color:var(--cyan)}
 </style>
 </head>
 <body>
@@ -361,7 +367,7 @@ tr.edrow td{background:var(--sunk)}
 
   <!-- charts -->
   <section class="panel c8" data-v="internet">
-    <h2>History <span class="sub"><select id="range" aria-label="Time range"><option value="6">6 h</option><option value="24" selected>24 h</option><option value="168">7 d</option><option value="720">30 d</option></select></span></h2>
+    <h2>History <span class="sub"><select id="range" aria-label="Time range" data-custom="h" data-lo="1" data-hi="720"><option value="6">6 h</option><option value="24" selected>24 h</option><option value="168">7 d</option><option value="720">30 d</option><option value="custom">Custom…</option></select></span></h2>
     <div class="cols2">
       <div><div class="meter-row"><span>Internet latency (ping <span id="wt"></span>)</span><span id="lat-now"></span></div><svg class="chart" id="ch-wan"></svg></div>
       <div><div class="meter-row"><span>Gateway latency (Wi-Fi hop)</span><span id="gw-now"></span></div><svg class="chart" id="ch-gw"></svg></div>
@@ -607,13 +613,13 @@ function strip(){
   for(const h of HIST){const i=Math.floor((h.ts-(now-hrs*3600))/bw);if(i>=0&&i<N){b[i].n++;b[i].up+=h.internet}}
   $("#strip").innerHTML=b.map((x,i)=>{const st=new Date((now-hrs*3600+i*bw)*1000).toLocaleString();
     if(!x.n)return`<i title="${st}: no data"></i>`;const r=x.up/x.n;return`<i class="${r==1?"g":r>0?"w":"c"}" title="${st}: ${(r*100).toFixed(0)}% up (${x.n} checks)"></i>`}).join("");
-  $("#strip-l").textContent=hrs>=168?(hrs/24)+" days ago":hrs+" h ago";
+  $("#strip-l").textContent=durTxt(hrs,"h")+" ago";
   const tot=HIST.length,up=HIST.reduce((a,h)=>a+h.internet,0);$("#avail-pct").textContent=tot?(100*up/tot).toFixed(2)+"% over "+tot+" checks":"—";
 }
 
 let SPD=null,OUT=null,BBD=null,SET=null;
 // ---- Settings card (Tools & settings): live update speed and the speed test schedule
-const everyTxt=m=>m<60?`every ${m} min`:m===60?"every hour":`every ${m/60} hours`;
+const everyTxt=m=>m===60?"every hour":"every "+durTxt(m,"min");
 const at12=t=>{const[h,m]=t.split(":").map(Number);return new Date(2000,0,1,h,m).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})};
 function spSched(){if(!SET)return"scheduled";return SET.speedtest_mode==="off"?"automatic tests off":SET.speedtest_mode==="daily"?"daily at "+at12(SET.speedtest_at):everyTxt(SET.speedtest_every_min)}
 const gbMonth=m=>(45*(1440/m)*30/1000);
@@ -621,7 +627,34 @@ const gbMonth=m=>(45*(1440/m)*30/1000);
 const PREF=(k,d)=>{try{const v=localStorage.getItem("ncc-"+k);return v==null?d:JSON.parse(v)}catch(e){return d}};
 const setPref=(k,v)=>{try{localStorage.setItem("ncc-"+k,JSON.stringify(v))}catch(e){}};
 let CHART_S=PREF("chart-min",5)*60;
-document.addEventListener("DOMContentLoaded",()=>{const w=document.getElementById("lt-win");if(w)w.textContent=CHART_S/60+" min"});
+// ---- "Custom…" on every time choice: <select data-custom="s|min|h" data-lo data-hi> gets any length in that range.
+// Type a number (in the menu's own unit) or add a unit: "90 min", "1.5 h", "2 days".
+const UNIT_S={s:1,min:60,h:3600};
+const durTxt=(v,u)=>{const t=Math.round(v*UNIT_S[u]),d=Math.floor(t/86400),h=Math.floor(t%86400/3600),m=Math.floor(t%3600/60),x=t%60;
+  return[[d,"day"],[h,"hour"],[m,"min"],[x,"second"]].filter(a=>a[0]).map(([n,w])=>n+" "+w+(n>1&&w!=="min"?"s":"")).join(" ")||"0"};
+function parseDur(a,u){
+  const m=String(a).trim().toLowerCase().match(/^(\d+(?:[.,]\d+)?)\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?|w|weeks?)?$/);if(!m)return null;
+  const n=parseFloat(m[1].replace(",",".")),k=(m[2]||u)[0],per={s:1,m:60,h:3600,d:86400,w:604800}[k];
+  return Math.round(n*per/UNIT_S[u]);
+}
+function askDur(u,lo,hi,what){
+  for(;;){const a=prompt(`${what||"How long?"}\nType a number of ${{s:"seconds",min:"minutes",h:"hours"}[u]}, or add a unit like 45 min, 1.5 h or 3 days.\nFrom ${durTxt(lo,u)} to ${durTxt(hi,u)}.`,"");
+    if(a==null||!a.trim())return null;const v=parseDur(a,u);if(v!=null&&v>=lo&&v<=hi)return v;
+    alert(v==null?`"${a}" isn't a length of time. Try something like 90 min or 2 h.`:`That's outside the allowed range (${durTxt(lo,u)} to ${durTxt(hi,u)}).`)}
+}
+const custAttr=(u,lo,hi,pre)=>`data-custom="${u}" data-lo="${lo}" data-hi="${hi}"${pre?` data-pre="${pre}"`:""}`;
+const custOpt='<option value="custom">Custom…</option>';
+const withCur=(list,cur)=>cur==null||list.includes(cur)?list:[...list,cur].sort((a,b)=>a-b);
+document.addEventListener("focusin",e=>{const s=e.target;if(s.matches&&s.matches("select[data-custom]")&&s.value!=="custom")s.dataset.prev=s.value},true);
+document.addEventListener("change",e=>{const s=e.target;if(!s.matches||!s.matches("select[data-custom]"))return;
+  if(s.value!=="custom"){s.dataset.prev=s.value;return}
+  e.stopImmediatePropagation();
+  const u=s.dataset.custom,v=askDur(u,+s.dataset.lo,+s.dataset.hi);
+  if(v==null){s.value=s.dataset.prev||s.options[0].value;return}
+  if(![...s.options].some(o=>o.value===String(v)))s.insertBefore(new Option((s.dataset.pre||"")+durTxt(v,u),v),
+    [...s.options].find(o=>o.value==="custom"||+o.value>v));  // keep the menu in order
+  s.value=String(v);s.dataset.prev=s.value;s.dispatchEvent(new Event("change",{bubbles:true}))},true);
+document.addEventListener("DOMContentLoaded",()=>{const w=document.getElementById("lt-win");if(w)w.textContent=durTxt(CHART_S/60,"min")});
 const SECTIONS=[["internet","🌐 Internet uptime and outages"],["speed","⚡ Average speed"],["data","📶 Data used"],["pihole","🛡 Ads blocked"],
   ["devices","📱 New devices"],["signins","🔐 Web sign-ins"],["sites","🌍 Websites"],["laptop","💻 Laptop restarts"]];
 const saveRow=k=>`<p style="margin-top:12px"><button data-save="${k}">Save</button> <span class="sm" id="msg-${k}"></span></p>`;
@@ -630,16 +663,18 @@ async function settingsUI(){
   SET=await api("/api/settings");if(!SET||SET.live_period==null){$("#set").innerHTML='<p class="note">Couldn\'t load settings.</p>';return}
   const opt=(v,t,cur)=>`<option value="${v}" ${v===cur?"selected":""}>${t}</option>`;
   const sel=(id,opts,cur,lbl)=>`<select id="${id}" aria-label="${lbl}">${opts.map(([v,t])=>opt(v,t,cur)).join("")}</select>`;
+  // a time menu with "Custom…": presets plus the saved value if it was a custom one
+  const tsel=(id,list,cur,lbl,u,lo,hi,txt)=>`<select id="${id}" aria-label="${lbl}" ${custAttr(u,lo,hi)}>${withCur(list,cur).map(v=>opt(v,txt?txt(v):durTxt(v,u),cur)).join("")}${custOpt}</select>`;
   $("#set").innerHTML=`<p class="sm">Style ${sel("set-style",[["scifi","Sci-fi"],["hacker","Hacker"],["clean","Clean"]],document.documentElement.dataset.style,"Style")}</p>
     <p class="sm">Theme ${sel("set-theme",[["dark","Dark"],["light","Light"],["auto","Match this device"]],nccThemeGet(),"Theme")}</p>
     <p class="sm">Text size ${sel("set-size",[["0.9","Smaller"],["1","Normal"],["1.15","Larger"],["1.3","Largest"]],String(PREF("size",1)),"Text size")}</p>
     <p class="sm">Accent color ${sel("set-accent",[["cyan","Cyan"],["green","Green"],["purple","Purple"],["orange","Orange"],["pink","Pink"]],PREF("accent","cyan"),"Accent color")}</p>
     <p class="note">These change right away and are saved for this browser only, so each person can pick their own.</p>`;
-  $("#sb-live").innerHTML=`<p class="sm">Update every ${sel("set-live",SET.live_periods.map(v=>[v,v===1?"second":v+" seconds"]),SET.live_period,"Update speed")}</p>
-    <p class="sm">Live charts show the last ${sel("set-chart",[[5,"5 minutes"],[10,"10 minutes"],[15,"15 minutes"],[30,"30 minutes"]],PREF("chart-min",5),"Chart length")} <span class="muted">(this browser)</span></p>
+  $("#sb-live").innerHTML=`<p class="sm">Update every ${tsel("set-live",SET.live_periods,SET.live_period,"Update speed","s",1,60,v=>v===1?"second":durTxt(v,"s"))}</p>
+    <p class="sm">Live charts show the last ${tsel("set-chart",[5,10,15,30],PREF("chart-min",5),"Chart length","min",1,60)} <span class="muted">(this browser)</span></p>
     <p class="note">How often the dashboard and Display mode refresh CPU, ping, download right now and Pi-hole. Faster uses a little more of the laptop's CPU while a dashboard is open (about 3% at every second).</p>${saveRow("live")}`;
   $("#sb-spd").innerHTML=`<p class="sm">${sel("set-mode",[["every","Repeat"],["daily","Once a day"],["off","Off (only when I press Run)"]],SET.speedtest_mode,"Schedule")}
-      <select id="set-every" aria-label="How often">${SET.speed_every.map(v=>opt(v,everyTxt(v),SET.speedtest_every_min)).join("")}</select>
+      <select id="set-every" aria-label="How often" ${custAttr("min",10,1440,"every ")}>${withCur(SET.speed_every,SET.speedtest_every_min).map(v=>opt(v,everyTxt(v),SET.speedtest_every_min)).join("")}${custOpt}</select>
       <input id="set-at" type="time" value="${esc(SET.speedtest_at)}" aria-label="Time of day"></p>
     <p class="sm" id="set-quiet-row"><label><input type="checkbox" id="set-quiet" ${SET.speed_quiet_on?"checked":""}> Quiet hours: no tests from</label>
       <input id="set-qf" type="time" value="${esc(SET.speed_quiet_from)}" aria-label="Quiet from"> to <input id="set-qt" type="time" value="${esc(SET.speed_quiet_to)}" aria-label="Quiet until"></p>
@@ -656,7 +691,7 @@ async function settingsUI(){
   $("#sb-du").innerHTML=`<p class="sm">Monthly data cap ${`<input id="set-cap" type="number" min="0" max="100000" step="50" value="${SET.data_cap_gb||0}" style="width:90px" aria-label="GB">`} GB <span class="muted">(0 = no cap)</span></p>
     <p class="sm">My bill's month starts on day <input id="set-bill" type="number" min="1" max="28" value="${SET.billing_day||1}" style="width:60px" aria-label="Billing day"> <span class="muted">(1-28)</span></p>
     <p class="note">With a cap, you get a phone alert at 80% and at 100% each billing month, and the Data usage box shows how much is left. Many fiber plans have no cap. Usage is counted by the router (AT&amp;T gateways only), so it can differ a little from your provider's bill.</p>${saveRow("du")}`;
-  $("#sb-ws").innerHTML=`<p class="sm">Check every ${sel("set-wsi",[[1,"minute"],[5,"5 minutes"],[15,"15 minutes"],[30,"30 minutes"],[60,"hour"]],SET.site_interval_min,"Check interval")}</p>
+  $("#sb-ws").innerHTML=`<p class="sm">Check every ${tsel("set-wsi",[1,5,15,30,60],SET.site_interval_min,"Check interval","min",1,1440,v=>v===1?"minute":v===60?"hour":durTxt(v,"min"))}</p>
     <p class="sm">Alert after ${sel("set-wsf",[[1,"1 failed check"],[2,"2 failed checks in a row"],[3,"3 failed checks in a row"],[5,"5 failed checks in a row"]],SET.site_fail_n,"Failures before alert")}</p>
     <p class="sm">Mark a site "slow" above <input id="set-wss" type="number" min="0" max="60000" step="100" value="${SET.site_slow_ms||0}" style="width:90px" aria-label="ms"> ms <span class="muted">(0 = off)</span></p>
     <p class="note">Sites are added and removed on the Internet tab. More failures before an alert means fewer false alarms but slower news.</p>${saveRow("ws")}`;
@@ -685,7 +720,7 @@ document.addEventListener("change",e=>{const id=e.target.id,v=e.target.value;
   if(id==="set-size"){setPref("size",+v);nccLook()}
   if(id==="set-style"){setPref("style",v);nccLook();try{charts()}catch(x){}}
   if(id==="set-accent"){setPref("accent",v);nccLook();try{charts()}catch(x){}}
-  if(id==="set-chart"){setPref("chart-min",+v);CHART_S=+v*60;$("#lt-win").textContent=v+" min"}
+  if(id==="set-chart"){setPref("chart-min",+v);CHART_S=+v*60;$("#lt-win").textContent=durTxt(+v,"min")}
   if(["set-wfb","set-wfm","set-wfh"].includes(id)){setPref("wifi",{band:$("#set-wfb").value,min:+$("#set-wfm").value,hidden:$("#set-wfh").checked});if($("#wf").innerHTML)wifiUI()}});
 const SAVE={
   live:()=>({live_period:+$("#set-live").value}),
@@ -746,7 +781,7 @@ async function usageUI(){
 }
 async function sitesUI(){
   const r=await api("/api/sites");const ss=r.sites||[];const slow=r.slow_ms||0;
-  if(r.interval_min)$("#ws-sub").textContent=`every ${r.interval_min===1?"minute":r.interval_min===60?"hour":r.interval_min+" min"} · phone alert if one goes down`;
+  if(r.interval_min)$("#ws-sub").textContent=`every ${r.interval_min===1?"minute":r.interval_min===60?"hour":durTxt(r.interval_min,"min")} · phone alert if one goes down`;
   $("#ws").innerHTML=ss.length?`<ul class="toplist">${ss.map(x=>`<li><span>${x.ok==null?chip("off","checking…"):!x.ok?chip("crit","DOWN"):slow&&x.ms>slow?chip("warn","SLOW"):chip("good","UP")} <b>${esc(x.name)}</b>
       <span class="muted sm"><br>${esc(x.url)}${x.ts?" · "+(x.ok?x.ms+" ms":esc(x.error||""))+" · checked "+ago(x.ts):""}</span></span>
       <span><button class="danger" data-ws-rm="${esc(x.url)}" title="Stop checking">Remove</button></span></li>`).join("")}</ul>`
@@ -885,7 +920,7 @@ async function pauseUI(menu){
     bar.innerHTML=`<span><b>⏸ PAUSED</b> ${until}: public web access and automatic speed tests are off. Monitoring, Pi-hole and alerts keep running.</span>${r.may?`<button id="pause-resume">▶ Resume now</button>`:""}`;
     bar.className="show";
   }else if(menu){
-    bar.innerHTML=`<span><b>⏸ Pause for</b></span>${r.minutes.map(m=>`<button data-pause="${m}">${m?(m>=60?m/60+" h":m+" min"):"Until I resume"}</button>`).join("")}<button id="pause-cancel">Cancel</button>
+    bar.innerHTML=`<span><b>⏸ Pause for</b></span>${r.minutes.map(m=>`<button data-pause="${m}">${m?durTxt(m,"min"):"Until I resume"}</button>`).join("")}<button data-pause="custom">Custom…</button><button id="pause-cancel">Cancel</button>
       <span class="sm" style="width:100%">Turns off public web access (web visitors are signed out) and automatic speed tests, then turns web access back on by itself when the time is up. Monitoring, Pi-hole and phone alerts keep running.</span><span class="sm" id="pause-msg"></span>`;
     bar.className="show";
   }else{bar.className="";bar.innerHTML=""}
@@ -895,8 +930,10 @@ document.addEventListener("click",async e=>{
   if(t.id==="pause-btn")return pauseUI(true);
   if(t.id==="pause-cancel")return pauseUI(false);
   if(t.id!=="pause-resume"&&!t.dataset.pause)return;
+  let mins=Number(t.dataset.pause);
+  if(t.dataset.pause==="custom"){mins=askDur("min",5,10080,"Pause for how long?");if(mins==null)return}
   t.disabled=true;
-  const r=await api("/api/pause",t.id==="pause-resume"?{on:false}:{on:true,minutes:Number(t.dataset.pause)});
+  const r=await api("/api/pause",t.id==="pause-resume"?{on:false}:{on:true,minutes:mins});
   if(r&&r.error){const m=$("#pause-msg");if(m)m.textContent=r.error;else alert(r.error);t.disabled=false;return}
   pauseUI(false);
 });
@@ -937,12 +974,12 @@ function webUI(r){
     <p class="note">Don't recognize one? <b>Block device</b> signs it out and stops that browser (and its IP address, if you choose) from ever signing in again. Also change that account's password or remove it.</p>
   </div><div>
     <b>How long a sign-in lasts</b>
-    <p class="sm">From the web: <select id="wa-wlen">${r.session_hours.map(h=>sessOpt(h,r.web_session_h)).join("")}</select></p>
-    <p class="sm">Tailscale (PIN): <select id="wa-plen">${r.session_hours.map(h=>sessOpt(h,r.pin_session_h)).join("")}</select></p>
+    <p class="sm">From the web: <select id="wa-wlen" ${custAttr("h",1,720)}>${withCur(r.session_hours,r.web_session_h).map(h=>sessOpt(h,r.web_session_h)).join("")}${custOpt}</select></p>
+    <p class="sm">Tailscale (PIN): <select id="wa-plen" ${custAttr("h",1,720)}>${withCur(r.session_hours,r.pin_session_h).map(h=>sessOpt(h,r.pin_session_h)).join("")}${custOpt}</select></p>
     <p class="note">After that, they have to sign in again. A shorter time also applies to people already signed in.</p>
   </div></div>`;
 }
-const sessOpt=(h,cur)=>`<option value="${h}" ${h===cur?"selected":""}>${h<24?h+(h===1?" hour":" hours"):h/24+(h===24?" day":" days")}</option>`;
+const sessOpt=(h,cur)=>`<option value="${h}" ${h===cur?"selected":""}>${durTxt(h,"h")}</option>`;
 document.addEventListener("change",async e=>{const u=e.target.dataset&&e.target.dataset.waRole;if(!u)return;
   const r=await api("/api/web/user",{user:u,role:e.target.value});if(r.error)alert(r.error);remoteUI()});
 document.addEventListener("change",async e=>{if(e.target.id!=="wa-wlen"&&e.target.id!=="wa-plen")return;
@@ -1007,6 +1044,7 @@ const WHY=[
   {m:/^(Internet up|Pi-hole enabled)/,lvl:"good",t:"Internet up / Pi-hole enabled",what:"Working normally.",fix:["Nothing to do."]}]},
  {grp:"Alerts (Security tab events and phone notifications)",items:[
   {m:/^web-signin$/,lvl:"warn",t:"Web sign-in",what:"Someone signed in to the dashboard from a web browser (not through Tailscale), with the username shown.",fix:["If it was you or your family, nothing to do.","If not: in Security → Web access, remove that account or press Turn off (Security tab → Web access)."]},
+  {m:/^web-reset$/,lvl:"warn",t:"Password reset",what:"Someone used \"Forgot password?\" on the web sign-in page. A code went to that account's sign-in email; with it they picked a new password and were signed in.",fix:["If it was them, nothing to do.","If it wasn't, remove the account or turn web access off, and check that person's email account is secure."]},
   {m:/^web-signin-fail$/,lvl:"warn",t:"Wrong web sign-in",what:"Someone typed a wrong username or password on the web sign-in page. After 5 in an hour, web sign-in locks for an hour.",fix:["If it was a family member mistyping, ignore it (Unlock now is in Security → Web access).","If it keeps happening, someone may be guessing: turn web access off."]},
   {m:/^remote-desktop$/,lvl:"info",t:"Remote desktop from the internet",what:"An older note: remote desktop was switched on or off for the open internet. That switch has been removed; remote desktop now only works from your home Wi-Fi and Tailscale devices.",fix:["Nothing to do."]},
   {m:/^pause$/,lvl:"info",t:"Dashboard paused or resumed",what:"Someone on the computer pressed Pause (public web access and automatic speed tests off for a while) or it resumed.",fix:["Nothing to do. Press Resume now in the yellow bar at the top to end a pause early."]},
@@ -1365,7 +1403,7 @@ function pihole(){
   const list=a=>(a&&a.length)?`<ul class="toplist">${a.map(([k,v])=>`<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join("")}</ul>`:'<p class="note">not available</p>';
   $("#ph").innerHTML=`<div class="controls">${!p.ok?chip("crit","Unreachable"):(p.blocking==="enabled"||p.blocking===true)?chip("good","Blocking enabled"):chip("warn","Blocking "+p.blocking)}
      <span class="muted">${esc(p.host)} · API ${esc(p.api||"?")}${p.version?" · "+esc(p.version):""} · DNS ${p.dns&&p.dns.ok?"✔ "+p.dns.ms+" ms":"✖"}</span>
-     ${p.controls?`<span style="margin-left:auto"></span><button class="danger" data-ph="disable">Pause 5 min</button><button data-ph="enable">Enable</button>`:""}</div>
+     ${p.controls?`<span style="margin-left:auto"></span><button class="danger" data-ph="disable">Pause…</button><button data-ph="enable">Enable</button>`:""}</div>
    ${p.error?`<p class="note" style="color:var(--serious)">${esc(p.error)}</p>`:""}
    <dl class="kv"><dt>Queries</dt><dd>${p.total??"—"}</dd><dt>Blocked</dt><dd>${p.blocked??"—"} (${p.pct!=null?Number(p.pct).toFixed(1):"—"}%)</dd>
    <dt>Cached / forwarded</dt><dd>${p.cached??"—"} / ${p.forwarded??"—"}</dd><dt>Clients</dt><dd>${p.clients??"—"}</dd><dt>Domains on blocklist</dt><dd>${p.gravity??"—"}</dd></dl>
@@ -1373,8 +1411,10 @@ function pihole(){
    <div style="margin-top:12px"><h2>Top clients</h2>${list(p.top_clients)}</div>
    <p class="note">${p.lists?'<a class="lnk" href="#/pihole">Manage allow / block lists →</a> · ':""}${p.controls?"":"The pause/resume blocking switch is off (PIHOLE_CONTROLS=0)."}</p>`;
   document.querySelectorAll("[data-ph]").forEach(b=>b.onclick=async()=>{
-    const en=b.dataset.ph==="enable";if(!confirm(en?"Re-enable Pi-hole blocking?":"Pause Pi-hole ad blocking for 5 minutes for the whole network?"))return;
-    const r=await api("/api/pihole/blocking",{enable:en,seconds:300});alert(r.error||"Done");load()});
+    const en=b.dataset.ph==="enable";let secs=null;
+    if(en){if(!confirm("Re-enable Pi-hole blocking?"))return}
+    else{const m=askDur("min",1,60,"Pause Pi-hole ad blocking for the whole network for how long? (5 min is usual)");if(m==null)return;secs=m*60}
+    const r=await api("/api/pihole/blocking",{enable:en,seconds:secs});alert(r.error||"Done");load()});
 }
 
 function security(){
@@ -1676,6 +1716,18 @@ setView(startView||"overview");
 load();setInterval(()=>{if(!document.hidden)load()},30000);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)liveStop();else{load();liveStart()}});
 liveStart();
+// ---- eye button on every password box: shows / hides what you typed (also on boxes added later)
+const EYE='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7c2 0 3.7.7 5.1 1.6M22 12s-3.6 7-10 7c-2 0-3.7-.7-5.1-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>';
+function eyes(){document.querySelectorAll('input[type="password"]:not([data-eye])').forEach(i=>{
+  i.dataset.eye="1";const had=document.activeElement===i,w=document.createElement("span"),b=document.createElement("button");
+  w.className="eyew";i.replaceWith(w);w.append(i,b);
+  b.type="button";b.className="eye";b.tabIndex=0;b.innerHTML=EYE;b.setAttribute("aria-label","Show password");b.title="Show password";
+  b.onclick=e=>{e.preventDefault();const show=i.type==="password";i.type=show?"text":"password";b.innerHTML=show?EYE_OFF:EYE;
+    b.setAttribute("aria-label",show?"Hide password":"Show password");b.title=show?"Hide password":"Show password";b.setAttribute("aria-pressed",show);
+    i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(x){}};
+  if(had)i.focus()})}
+eyes();new MutationObserver(eyes).observe(document.body,{childList:true,subtree:true});
 </script>
 </body>
 </html>

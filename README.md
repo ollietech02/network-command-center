@@ -153,8 +153,10 @@ It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailsc
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
 - **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
 - **Using the computer yourself for a while?** Press **⏸ Pause** at the top of the dashboard (on the computer itself).
-  Public web access and automatic speed tests switch off for 30 minutes to 4 hours (or until you press **Resume**) and
-  come back by themselves. Monitoring, the ad blocker and alerts keep running.
+  Public web access and automatic speed tests switch off for 30 minutes to 4 hours, a time you type in (**Custom…**),
+  or until you press **Resume**, then come back by themselves. Monitoring, the ad blocker and alerts keep running.
+- **Pick your own times:** every time menu (speed tests, website checks, how long a sign-in lasts, history, Pause and
+  more) has a **Custom…** choice. Type a number or something like `90 min`, `1.5 h` or `3 days`.
 - **Something wrong?** See [Found a bug?](#found-a-bug) below.
 
 ## Whole-home ad blocking
@@ -190,7 +192,9 @@ Manual; Windows: Settings → Network → your network → DNS server assignment
 - The dashboard only listens on the computer itself (`localhost`), so other devices can't open it directly. Phones reach it through Tailscale's private
   network, never through an open port.
 - Nothing is opened to the internet. "Web access" (any browser, no Tailscale) is a separate switch you turn on
-  yourself, and it uses passwords plus emailed sign-in codes.
+  yourself, and it uses passwords plus emailed sign-in codes. **Forgot password?** on the sign-in page emails a reset
+  code to the address on that account. Every reset sends your phone an alert, and the page never says whether a
+  username exists.
 - It never signs in to your router or changes its settings, firewall or Wi-Fi. On Windows it adds Windows Firewall
   rules only for what you picked (ad blocker, Remote Desktop), limited to your home network and Tailscale.
 - Passwords live in `~/.config/ncc/secrets.env` (Windows: `C:\Users\<you>\.config\ncc\secrets.env`), readable only by you, and

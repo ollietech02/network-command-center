@@ -28,7 +28,20 @@ button{margin-top:14px;width:100%;padding:13px;border-radius:10px;border:1px sol
   color:var(--cyan);font:600 15px system-ui,sans-serif;cursor:pointer}
 button:disabled{opacity:.5}
 .sm{font-size:13px;margin:10px 0 0}.sm a{color:var(--cyan)}
-#msg{min-height:22px;margin-top:12px;color:var(--crit);font-size:14px}
+#msg{display:none;margin:0 0 14px;padding:10px 12px;border-radius:10px;font-size:14px;text-align:left;line-height:1.4;
+  color:#ffd7d7;background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.55)}
+#msg.show{display:block}#msg.ok{color:#d4f7e0;background:rgba(61,214,140,.12);border-color:rgba(61,214,140,.55)}
+#msg b{color:var(--crit)}#msg.ok b{color:#3dd68c}
+input.bad{border-color:var(--crit)!important}
+.shake{animation:shake .35s}@keyframes shake{25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+.rules{font-size:12px;color:var(--mut);text-align:left;margin:-4px 0 6px}
+.eyew{position:relative;display:inline-block;max-width:100%;vertical-align:middle}
+.eyew>input{padding-right:40px!important}
+button.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:34px;height:34px;margin:0;padding:0;border:0;border-radius:8px;
+  background:none;display:grid;place-items:center;cursor:pointer;opacity:.75}
+button.eye:hover,button.eye:focus-visible{opacity:1}
+.eyew{display:block}.eyew:has(input.txt){margin-bottom:10px}.eyew>input.txt{margin-bottom:0}
+button.eye{color:var(--mut)}button.eye:hover{color:var(--cyan)}
 </style>
 </head>
 <body>
@@ -36,17 +49,28 @@ button:disabled{opacity:.5}
   <img src="/apple-touch-icon.png" alt="">
   <h1>NETWORK COMMAND CENTER</h1>
   <p id="lead">__LEAD__</p>
+  <div id="msg" role="alert" aria-live="assertive"></div>
   <div id="pin-f"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]*" maxlength="12" autofocus aria-label="PIN"></div>
   <div id="web-f" hidden>
     <input id="user" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="Username" aria-label="Username">
     <input id="pw" class="txt" type="password" autocomplete="current-password" maxlength="128" placeholder="Password" aria-label="Password">
+    <p class="sm" style="margin:0;text-align:right"><a href="#" id="forgot">Forgot password?</a></p>
+  </div>
+  <div id="reset-f" hidden>
+    <input id="r-user" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="Username" aria-label="Username">
+    <div id="r-step2" hidden>
+      <input id="r-code" class="txt" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="6-digit code from the email" aria-label="Reset code">
+      <input id="r-pw" class="txt" type="password" autocomplete="new-password" maxlength="128" placeholder="New password" aria-label="New password">
+      <input id="r-pw2" class="txt" type="password" autocomplete="new-password" maxlength="128" placeholder="New password again" aria-label="New password again">
+      <p class="rules">At least 10 characters. Mix words, numbers and symbols, and don't include your username.</p>
+    </div>
+    <p class="sm"><a href="#" id="r-back">Back to sign in</a></p>
   </div>
   <div id="code-f" hidden>
     <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" aria-label="6-digit code">
     <p class="sm"><a href="#" id="resend">Send a new code</a> · <a href="#" id="restart">Start over</a></p>
   </div>
   <button id="go">Unlock</button>
-  <div id="msg" role="alert"></div>
 </form>
 <script>
 const TOKEN="__CSRF__",MODE="__MODE__";  // pin = Tailscale device, web = open web (username + password), off = web access off
@@ -58,27 +82,81 @@ if(MODE==="off"){$("lead").textContent="Web access is turned off. It can be turn
 let PENDING=null;  // web sign-in, step 2: the code emailed after a correct password
 // Remember step 2 for its 10 minutes: a home-screen app often reloads while you go to Mail for the code.
 const SAVE="ncc-pending",save=v=>{try{v?localStorage.setItem(SAVE,JSON.stringify(v)):localStorage.removeItem(SAVE)}catch{}};
-const post=(u,body)=>fetch(u,{method:"POST",headers:{"Content-Type":"application/json","X-NCC-Token":TOKEN},body:JSON.stringify(body)}).then(r=>r.json());
+// Every answer becomes {ok…} or {error}: wrong password, the laptop being off, an old page, a dropped connection.
+const post=async(u,body)=>{
+  let r;try{r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json","X-NCC-Token":TOKEN},body:JSON.stringify(body)})}
+  catch{return{error:navigator.onLine===false?"You're offline. Check this device's Wi-Fi or mobile data, then try again.":
+    MODE==="pin"?"Can't reach the laptop. Is Tailscale on, and is the laptop on?":"Can't reach the laptop. It may be off, asleep or restarting. Try again in a minute."}}
+  let j=null;try{j=await r.json()}catch{}
+  if(j&&j.error==="forbidden"){setTimeout(()=>location.reload(),2500);return{error:"This page was out of date. Reloading it, then please try again."}}
+  if(j)return j;
+  return{error:r.status>=502&&r.status<=504?"The laptop isn't answering right now (it may be off, asleep or restarting). Try again in a minute."
+    :r.status===429?"Too many tries. Wait a minute and try again.":`Something went wrong on the laptop (error ${r.status}). Try again in a minute.`};
+};
+// show a message where you're signing in; bad = red with the fields marked, otherwise green
+function say(text,bad=true,fields=[]){const m=$("msg");document.querySelectorAll("input.bad").forEach(x=>x.classList.remove("bad"));
+  if(!text){m.className="";m.textContent="";return}
+  m.className="show"+(bad?"":" ok");m.innerHTML="";const b=document.createElement("b");b.textContent=bad?"⚠ ":"✔ ";m.append(b,text);
+  if(bad){fields.forEach(f=>$(f)&&$(f).classList.add("bad"));const c=$("f");c.classList.remove("shake");void c.offsetWidth;c.classList.add("shake")}}
+document.addEventListener("input",e=>{if(e.target.classList.contains("bad"))e.target.classList.remove("bad")});
 const sentTo=to=>"We emailed a 6-digit code to "+to.join(" and ")+". Enter it here. It expires in 10 minutes (check Junk if it's not there).";
 function codeStep(to){$("web-f").hidden=true;$("code-f").hidden=false;$("lead").textContent=sentTo(to);$("go").textContent="Verify";$("code").value="";$("code").focus()}
+// Forgot password: 1) username → a code is emailed to that account's sign-in email, 2) code + new password → signed in
+let RESET=null,RMODE=false;
+const RSAVE="ncc-reset",rsave=v=>{try{v?localStorage.setItem(RSAVE,JSON.stringify(v)):localStorage.removeItem(RSAVE)}catch{}};
+function resetStep(user,pending){RMODE=true;RESET=pending||null;$("web-f").hidden=true;$("code-f").hidden=true;$("reset-f").hidden=false;
+  $("r-user").value=user||$("user").value||"";$("r-step2").hidden=!RESET;$("r-user").disabled=!!RESET;
+  $("lead").textContent=RESET?`If "${$("r-user").value}" is an account here, we emailed a 6-digit code to its sign-in email. Enter it and pick a new password (check Junk if it's not there).`
+    :"Forgot your password? Type your username and we'll email a reset code to the address on your account.";
+  $("go").textContent=RESET?"Set new password":"Email me a reset code";(RESET?$("r-code"):$("r-user")).focus()}
+async function resetSubmit(){
+  if(!RESET){const u=$("r-user").value.trim();if(!u)return say("Type your username first.",true,["r-user"]);
+    const j=await post("/api/web/reset",{user:u});if(j.error)return say(j.error,true,["r-user"]);
+    rsave({pending:j.pending,user:u,exp:Date.now()+590e3});resetStep(u,j.pending);say("Code sent. It can take a minute to arrive.",false);return}
+  const code=$("r-code").value.trim(),pw=$("r-pw").value;
+  if(!/^\d{6}$/.test(code))return say("Enter the 6-digit code from the email.",true,["r-code"]);
+  if(pw.length<10)return say("The new password needs at least 10 characters.",true,["r-pw"]);
+  if(pw!==$("r-pw2").value)return say("The two new passwords don't match.",true,["r-pw2"]);
+  const j=await post("/api/web/reset/finish",{pending:RESET,code,password:pw});
+  if(j.ok){rsave(null);say("Password changed. Signing you in…",false);setTimeout(()=>location.replace("/"),900);return}
+  if(/expired|new one/i.test(j.error||"")){rsave(null);RESET=null;resetStep($("r-user").value);return say(j.error)}
+  say(j.error,true,/code/i.test(j.error||"")?["r-code"]:["r-pw","r-pw2"]);
+}
 $("f").addEventListener("submit",async e=>{
-  e.preventDefault();if(MODE==="off")return;const b=$("go"),m=$("msg");b.disabled=true;m.textContent="";
+  e.preventDefault();if(MODE==="off")return;const b=$("go");b.disabled=true;say("");
+  if(RMODE){try{await resetSubmit()}finally{b.disabled=false}return}
   try{
     const j=MODE!=="web"?await post("/api/remote/login",{pin:$("pin").value})
       :PENDING?await post("/api/web/login/code",{pending:PENDING,code:$("code").value})
       :await post("/api/web/login",{user:$("user").value,password:$("pw").value});
     if(j.ok){save(null);location.replace("/");return}
     if(j.step==="code"){PENDING=j.pending;save({pending:j.pending,to:j.to,exp:Date.now()+590e3});codeStep(j.to);b.disabled=false;return}
-    m.textContent=j.error||"Couldn't sign in.";
-    if(PENDING&&/expired|again/i.test(j.error||"")){save(null);location.reload()}
-  }catch{m.textContent=MODE==="web"?"Can't reach the laptop. It may be off.":"Can't reach the laptop. Is Tailscale on?"}
+    say(j.error||"Couldn't sign in. Try again.",true,MODE!=="web"?["pin"]:PENDING?["code"]:/username|password/i.test(j.error||"")?["user","pw"]:[]);
+    if(PENDING&&/expired|sign in again/i.test(j.error||"")){save(null);setTimeout(()=>location.reload(),3000)}
+  }catch{say("Something went wrong on this page. Reload it and try again.")}
   b.disabled=false;(MODE!=="web"?$("pin"):PENDING?$("code"):$("pw")).select();
 });
 $("resend").onclick=async e=>{e.preventDefault();const j=await post("/api/web/login/resend",{pending:PENDING}).catch(()=>({error:"Can't reach the laptop."}));
-  $("msg").textContent=j.error||"";if(j.ok)$("lead").textContent="New code sent. "+sentTo(j.to)};
+  if(j.ok){say("New code sent.",false);$("lead").textContent=sentTo(j.to)}else say(j.error)};
 $("restart").onclick=e=>{e.preventDefault();save(null);location.reload()};
+$("forgot").onclick=e=>{e.preventDefault();say("");resetStep()};
+$("r-back").onclick=e=>{e.preventDefault();rsave(null);location.reload()};
 if(MODE==="web"){let p=null;try{p=JSON.parse(localStorage.getItem(SAVE)||"null")}catch{}
-  if(p&&p.pending&&p.exp>Date.now()){PENDING=p.pending;codeStep(p.to||[]);$("lead").textContent="Enter the 6-digit code we emailed to "+(p.to||[]).join(" and ")+"."}else save(null)}
+  if(p&&p.pending&&p.exp>Date.now()){PENDING=p.pending;codeStep(p.to||[]);$("lead").textContent="Enter the 6-digit code we emailed to "+(p.to||[]).join(" and ")+"."}else save(null)
+  let r=null;try{r=JSON.parse(localStorage.getItem(RSAVE)||"null")}catch{}
+  if(r&&r.pending&&r.exp>Date.now()&&!PENDING)resetStep(r.user,r.pending);else rsave(null)}
+// ---- eye button on every password box: shows / hides what you typed (also on boxes added later)
+const EYE='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7c2 0 3.7.7 5.1 1.6M22 12s-3.6 7-10 7c-2 0-3.7-.7-5.1-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>';
+function eyes(){document.querySelectorAll('input[type="password"]:not([data-eye])').forEach(i=>{
+  i.dataset.eye="1";const had=document.activeElement===i,w=document.createElement("span"),b=document.createElement("button");
+  w.className="eyew";i.replaceWith(w);w.append(i,b);
+  b.type="button";b.className="eye";b.tabIndex=0;b.innerHTML=EYE;b.setAttribute("aria-label","Show password");b.title="Show password";
+  b.onclick=e=>{e.preventDefault();const show=i.type==="password";i.type=show?"text":"password";b.innerHTML=show?EYE_OFF:EYE;
+    b.setAttribute("aria-label",show?"Hide password":"Show password");b.title=show?"Hide password":"Show password";b.setAttribute("aria-pressed",show);
+    i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(x){}};
+  if(had)i.focus()})}
+eyes();new MutationObserver(eyes).observe(document.body,{childList:true,subtree:true});
 </script>
 </body>
 </html>

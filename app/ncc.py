@@ -182,6 +182,16 @@ WEEKLY_SECTIONS = ("internet", "speed", "data", "pihole", "devices", "signins", 
 SESSION_HOURS = (1, 12, 24, 168, 720)       # how long a sign-in lasts: 1 h, 12 h, 1 day, 7 days, 30 days
 LIVE_PERIODS = (1, 2, 5, 10)                 # seconds between live dashboard updates
 SPEED_EVERY = (10, 30, 60, 120, 180, 360, 720)  # minutes between scheduled speed tests
+# The lists above are the menu choices; "Custom…" in the dashboard can pick any whole number in these ranges.
+CUSTOM = {"live_period": (1, 60, "Update speed must be 1 to 60 seconds."),
+          "speedtest_every_min": (10, 1440, "Speed tests can repeat every 10 minutes to 24 hours."),
+          "site_interval_min": (1, 1440, "Website checks can run every 1 minute to 24 hours."),
+          "web_session_h": (1, 720, "A sign-in can last 1 hour to 30 days."),
+          "pin_session_h": (1, 720, "A sign-in can last 1 hour to 30 days.")}
+
+
+def whole(v, lo, hi):
+    return isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
 
 
 def settings():
@@ -199,19 +209,15 @@ def settings():
 
 def save_settings(body):
     s = settings()
-    if "live_period" in body:
-        v = body["live_period"]
-        if v not in LIVE_PERIODS:
-            raise ValueError("Update speed must be 1, 2, 5 or 10 seconds.")
-        s["live_period"] = v
+    for k, (lo, hi, msg) in CUSTOM.items():
+        if k in body:
+            if not whole(body[k], lo, hi):
+                raise ValueError(msg)
+            s[k] = body[k]
     if "speedtest_mode" in body:
         if body["speedtest_mode"] not in ("every", "daily", "off"):
             raise ValueError("Unknown speed test schedule.")
         s["speedtest_mode"] = body["speedtest_mode"]
-    if "speedtest_every_min" in body:
-        if body["speedtest_every_min"] not in SPEED_EVERY:
-            raise ValueError("Unknown speed test interval.")
-        s["speedtest_every_min"] = body["speedtest_every_min"]
     if "speedtest_at" in body:
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(body["speedtest_at"])):
             raise ValueError("Time must look like 03:00.")
@@ -252,10 +258,6 @@ def save_settings(body):
             if not isinstance(body[k], int) or isinstance(body[k], bool) or not lo <= body[k] <= hi:
                 raise ValueError(msg)
             s[k] = body[k]
-    if "site_interval_min" in body:
-        if body["site_interval_min"] not in (1, 5, 15, 30, 60):
-            raise ValueError("Unknown check interval.")
-        s["site_interval_min"] = body["site_interval_min"]
     if "site_fail_n" in body:
         if body["site_fail_n"] not in (1, 2, 3, 5):
             raise ValueError("Unknown number of failures.")
@@ -264,11 +266,6 @@ def save_settings(body):
         if not isinstance(body["weekly_sections"], list) or not set(body["weekly_sections"]) <= set(WEEKLY_SECTIONS):
             raise ValueError("Unknown report section.")
         s["weekly_sections"] = [x for x in WEEKLY_SECTIONS if x in body["weekly_sections"]]
-    for k in ("web_session_h", "pin_session_h"):
-        if k in body:
-            if body[k] not in SESSION_HOURS:
-                raise ValueError("Unknown sign-in length.")
-            s[k] = body[k]
     kv_set("settings", s)
     return s
 
@@ -461,7 +458,7 @@ def event(level, kind, msg, notify=True):
     log(f"[{level}] {kind}: {msg}")
     if notify and level in ("warn", "crit") or notify == "phone":
         now = time.time()
-        key = msg if kind in ("new-device", "web-signin", "site-down", "site-up") else kind  # every new device / web sign-in gets its own alert
+        key = msg if kind in ("new-device", "web-signin", "web-reset", "site-down", "site-up") else kind  # every new device / web sign-in gets its own alert
         if now - _last_notify.get(key, 0) < 900:  # 15-minute rate limit per kind
             return
         _last_notify[key] = now
@@ -1563,7 +1560,12 @@ def kick_streams():
 
 # ---- "Pause": while you're using the computer yourself, switch off public web access and automatic speed tests, then
 # put them back by themselves. Monitoring, Pi-hole and phone alerts keep running. Only from the computer itself.
-PAUSE_MIN = (30, 60, 120, 240, 0)  # 0 = until you press Resume
+PAUSE_MIN = (30, 60, 120, 240, 0)  # menu choices, 0 = until you press Resume; "Custom…" allows 5 minutes to 7 days
+
+
+def dur_txt(minutes):
+    d, h, m = minutes // 1440, minutes % 1440 // 60, minutes % 60
+    return " ".join(f"{n} {u}" for n, u in ((d, "d"), (h, "h"), (m, "min")) if n)
 
 
 def paused():
@@ -1573,8 +1575,8 @@ def paused():
 
 def set_pause(on, minutes, who):
     if on:
-        if minutes not in PAUSE_MIN:
-            raise ValueError("Pick 30 minutes, 1, 2 or 4 hours, or until you resume.")
+        if minutes != 0 and not whole(minutes, 5, 10080):
+            raise ValueError("Pause for 5 minutes to 7 days, or until you resume.")
         if paused():
             raise ValueError("Already paused.")
         s = settings()
@@ -1584,7 +1586,7 @@ def set_pause(on, minutes, who):
             s["web_access"] = False
             kv_set("settings", s)
             kick_streams()
-        how = f"for {minutes // 60} h" if minutes >= 60 else f"for {minutes} min" if minutes else "until resumed"
+        how = f"for {dur_txt(minutes)}" if minutes else "until resumed"
         event("info", "pause", f"Paused {how} by {who}: public web access off, no automatic speed tests.", False)
     else:
         resume(f"by {who}")
@@ -1669,7 +1671,7 @@ def set_web_user(user, pw, role=None, emails=None):
     emails = clean_emails(emails) if (emails or not existed) else us[user].get("emails")
     if not emails:
         emails = clean_emails(emails)  # raises: everyone needs a code email
-    us[user] = {"salt": salt, "hash": _scrypt(pw, salt), "created": us.get(user, {}).get("created") or int(time.time()),
+    us[user] = {**us.get(user, {}), "salt": salt, "hash": _scrypt(pw, salt), "created": us.get(user, {}).get("created") or int(time.time()),
                 "role": role if role in ("edit", "view") else us.get(user, {}).get("role", "edit"), "emails": emails}
     _write_private(WEB_FILE, {"users": us})
     drop_user_sessions(user)
@@ -1726,6 +1728,11 @@ def _web_fail(who, what):
           "phone" if n in (3, 5) else False)
 
 
+def _tries_left():
+    n = 5 - len([t for t in WEB_FAILS if time.time() - t < WEB_LOCK_S])
+    return "" if n > 3 else " Web sign-in locks for an hour after 1 more wrong try." if n == 1 else f" {n} more wrong tries and web sign-in locks for an hour." if n > 0 else " Web sign-in is now locked for an hour."
+
+
 def _web_gate():
     if not settings().get("web_access"):
         raise PermissionError("Web access is turned off.")
@@ -1745,7 +1752,7 @@ def check_web_login(user, pw, who, meta=None):
     h = _scrypt(str(pw or "")[:128], rec["salt"] if rec else _DUMMY_SALT)  # same work either way: no hint which names exist
     if not rec or not hmac.compare_digest(h, rec["hash"]):
         _web_fail(who, "Wrong web sign-in")
-        raise PermissionError("Wrong username or password.")
+        raise PermissionError("Wrong username or password." + _tries_left())
     if not rec.get("emails"):
         raise PermissionError("This account has no email for sign-in codes yet. Ask the owner to add one in the Security tab.")
     if len(OTP) > 50:
@@ -1786,7 +1793,7 @@ def check_web_code(pending, code):
         if p["tries"] >= 5:
             OTP.pop(pending, None)
             raise PermissionError("Too many wrong codes. Sign in again.")
-        raise PermissionError("Wrong code. Check the newest email.")
+        raise PermissionError("Wrong code. Check the newest email." + _tries_left())
     OTP.pop(pending, None)
     user, who = p["user"], p["who"]
     if user not in web_users():
@@ -1795,6 +1802,63 @@ def check_web_code(pending, code):
     event("warn", "web-signin", f"Web sign-in: {user} from {who} at {time.strftime('%H:%M')} (password + email code). "
           "If this wasn't them, remove the account or turn off web access (Security tab, on the laptop or a Tailscale device).", "phone")
     return new_session("web", user, p["meta"])
+
+
+# ---- "Forgot password?" on the web sign-in page (asked for by the user 2026-10-30). A 6-digit code goes to the account's
+# own sign-in emails; with it the person picks a new password and is signed in. The answer never says whether a username
+# exists, wrong codes count toward the same 5-an-hour lockout, at most 3 reset emails per account an hour, and the
+# owner's phone gets an alert.
+RESET = {}        # pending id -> {user (None if no such account), hash, exp, tries, who}
+RESET_SENT = {}   # user -> times a reset email went out
+
+
+def start_reset(user, who):
+    _web_gate()
+    for k in [k for k, v in RESET.items() if v["exp"] < time.time()]:
+        RESET.pop(k, None)
+    if len(RESET) > 50:
+        raise PermissionError("Too many password resets in progress. Try again later.")
+    user, now = str(user or "").strip().lower()[:32], time.time()
+    if not user:
+        raise ValueError("Type your username first.")
+    pending, code, rec = secrets.token_urlsafe(24), f"{secrets.randbelow(10 ** 6):06d}", web_users().get(user)
+    sent = [t for t in RESET_SENT.get(user, []) if now - t < 3600]
+    real = bool(rec and rec.get("emails") and smtp_conf() and len(sent) < 3)
+    RESET[pending] = {"user": user if real else None, "hash": _otp_hash(pending, code if real else secrets.token_hex(8)),
+                      "exp": now + OTP_TTL, "tries": 0, "who": who}
+    if real:
+        RESET_SENT[user] = sent + [now]
+        msg = (f"Your Network Command Center password reset code is {code}\n\nIt expires in 10 minutes. If you didn't ask to "
+               "reset your password, ignore this email and tell whoever runs the dashboard.")
+        threading.Thread(target=send_email, args=(rec["emails"], f"NCC password reset code: {code}", msg), daemon=True).start()
+        event("info", "web-reset", f"Password reset code emailed for {user} (asked from {who}).", False)
+    elif rec and len(sent) >= 3:
+        log(f"password reset for {user}: not sent, 3 already this hour")
+    return pending
+
+
+def finish_reset(pending, code, pw, meta):
+    _web_gate()
+    p = RESET.get(str(pending or ""))
+    if not p or p["exp"] < time.time():
+        RESET.pop(str(pending or ""), None)
+        raise PermissionError("That code expired. Ask for a new one.")
+    code = re.sub(r"\D", "", str(code or ""))[:6]
+    if not hmac.compare_digest(_otp_hash(pending, code), p["hash"]) or not p["user"]:
+        p["tries"] += 1
+        _web_fail(p["who"], "Wrong password reset code")
+        if p["tries"] >= 5:
+            RESET.pop(pending, None)
+            raise PermissionError("Too many wrong codes. Ask for a new one.")
+        raise PermissionError("Wrong code. Check the newest email." + _tries_left())
+    user = p["user"]
+    if user not in web_users():
+        raise PermissionError("That account was removed.")
+    set_web_user(user, pw)  # ValueError (password too short / easy) keeps the code usable for another try
+    RESET.pop(pending, None)
+    event("warn", "web-reset", f"Password reset by email for {user} from {p['who']}, and signed in."
+          " If it wasn't them, remove the account or turn off web access.", "phone")
+    return new_session("web", user, meta)
 
 
 def drop_session(tok):
@@ -3250,7 +3314,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         if self.path.startswith("/api/web/login"):
             log(f"POST {self.path} from {self._client_ip()}")
-        if self.path in ("/api/web/login", "/api/web/login/code", "/api/web/login/resend", "/api/remote/login") and self._blocked():
+        if self.path in ("/api/web/login", "/api/web/login/code", "/api/web/login/resend", "/api/remote/login",
+                         "/api/web/reset", "/api/web/reset/finish") and self._blocked():
             return self._send(403, {"error": "This device is blocked from signing in."})
         if self.path == "/api/web/login":
             if not self._public():
@@ -3267,6 +3332,31 @@ class H(BaseHTTPRequestHandler):
             except (ValueError, AttributeError):
                 return self._send(400, {"error": "bad request"})
             return self._send(200, {"step": "code", "pending": pending, "to": to})
+        if self.path in ("/api/web/reset", "/api/web/reset/finish"):
+            if not self._public():
+                return self._send(403, {"error": "Use your PIN on Tailscale devices."})
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                b = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
+                ua = re.sub(r"[^\w ./();,-]", "", (self.headers.get("User-Agent") or "")[:60])
+                if self.path == "/api/web/reset":
+                    return self._send(200, {"ok": True, "pending": start_reset(b.get("user"), f"{self._client_ip() or 'unknown'} ({ua or 'unknown browser'})")})
+                tok = finish_reset(b.get("pending"), b.get("code"), b.get("password"),
+                                   {"ip": self._client_ip(), "ua": ua, "dev": self._device()})
+            except PermissionError as e:
+                return self._send(403, {"error": str(e)})
+            except ValueError as e:
+                return self._send(400, {"error": str(e) or "bad request"})
+            except AttributeError:
+                return self._send(400, {"error": "bad request"})
+            body = json.dumps({"ok": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Set-Cookie", f"ncc_s={tok}; Path=/; Max-Age={session_length('web')}; HttpOnly; Secure; SameSite=Strict")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path in ("/api/web/login/code", "/api/web/login/resend"):
             if not self._public():
                 return self._send(403, {"error": "Use your PIN on Tailscale devices."})
