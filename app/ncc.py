@@ -10,6 +10,7 @@ import collections
 import hashlib
 import hmac
 import html
+import io
 import ipaddress
 import json
 import os
@@ -28,6 +29,7 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime
@@ -71,7 +73,7 @@ def load_env(path):
 CFG = {
     "BIND": "127.0.0.1", "PORT": "8088", "INTERVAL": "60", "DEVICE_INTERVAL": "300",
     "GATEWAY": "", "WAN_TARGET": "1.1.1.1", "HTTPS_URL": "https://www.google.com/generate_204",
-    "DNS_TEST_NAME": "example.com", "PIHOLE_URL": "", "PIHOLE_CONTROLS": "0", "PIHOLE_LISTS": "0", "PIHOLE_BLOCK": "0", "SYSTEM_CONTROLS": "0",
+    "DNS_TEST_NAME": "example.com", "PIHOLE_URL": "", "PIHOLE_CONTROLS": "0", "PIHOLE_LISTS": "0", "PIHOLE_BLOCK": "0", "SYSTEM_CONTROLS": "0", "UPDATE_BUTTON": "1",
     "AI_ENABLED": "0", "AI_ASSISTANT": "", "AI_MODEL": "", "NTFY_URL": "", "DESKTOP_NOTIFY": "1", "SPEEDTEST_EVERY_MIN": "60",
     "RETENTION_DAYS": "30", "ADGUARD_URL": "", "ROUTER": "generic", "STYLE": "scifi", "REMOTE_DESKTOP": "0", "RDP_KIND": "gnome", "RDP_USER": "remote",
 }
@@ -3093,6 +3095,126 @@ def update_tick():
         threading.Thread(target=update_check, daemon=True).start()
 
 
+# "Update now" (asked for by the user 2026-10-30): installs the newest release and restarts, from the computer itself or
+# your own Tailscale devices only. A git copy updates with git (only if nobody changed the program files); a downloaded
+# copy gets the release zip from GitHub over HTTPS. data/, config/ncc.env and backups/ are never touched, the old
+# program files are copied to backups/ first, and they're put back if the new version fails its syntax check.
+# UPDATE_BUTTON=0 in config/ncc.env hides the button (for a copy with your own changes).
+APPLY = {"running": False, "step": "", "error": None, "done": None}
+KEEP = {"data", "backups", ".git"}  # top-level folders an update never replaces
+
+
+def _git(*args, timeout=60):
+    try:
+        p = subprocess.run(["git", "-C", str(BASE), *args], capture_output=True, text=True, timeout=timeout,
+                           env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}, **({"creationflags": 0x08000000} if WIN else {}))
+        return p.returncode, (p.stdout + p.stderr).strip()
+    except (subprocess.TimeoutExpired, OSError):
+        return -1, ""
+
+
+def update_kind():
+    if (BASE / ".git").exists() and shutil.which("git"):
+        code, out = _git("remote", "get-url", "origin", timeout=10)
+        if code == 0 and REPO.lower() in out.lower():
+            return "git"
+    return "zip"
+
+
+def _backup_program(dest):
+    for x in BASE.iterdir():
+        if x.name in KEEP or x.name == "__pycache__":
+            continue
+        if x.is_dir():
+            shutil.copytree(x, dest / x.name, ignore=shutil.ignore_patterns("__pycache__", "*.pre-*", "ncc.env"))
+        else:
+            shutil.copy2(x, dest / x.name)
+    if (DATA / "ncc.db").exists():
+        with sqlite3.connect(DATA / "ncc.db") as src, sqlite3.connect(dest / "ncc.db") as dst:
+            src.backup(dst)
+
+
+def _unzip_release(tag):
+    req = urllib.request.Request(f"https://codeload.github.com/{REPO}/zip/refs/tags/{tag}",
+                                 headers={"User-Agent": f"network-command-center/{VERSION}"})
+    with urllib.request.urlopen(req, timeout=120, context=ssl_ctx()) as r:
+        blob = r.read(40_000_001)
+    if len(blob) > 40_000_000:
+        raise ValueError("The download was bigger than expected.")
+    z = zipfile.ZipFile(io.BytesIO(blob))
+    root = z.namelist()[0].split("/")[0] + "/"
+    for info in z.infolist():
+        rel = info.filename[len(root):] if info.filename.startswith(root) else None
+        if rel is None:
+            raise ValueError("The download doesn't look like this project.")
+        parts = [x for x in rel.split("/") if x]
+        if not parts or info.is_dir() or ".." in parts or ":" in rel or "\\" in rel or parts[0] in KEEP or rel == "config/ncc.env":
+            continue
+        dest = BASE.joinpath(*parts)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + ".ncc-new")
+        tmp.write_bytes(z.read(info))
+        if not WIN and (info.external_attr >> 16) & 0o111:
+            tmp.chmod(0o755)
+        os.replace(tmp, dest)
+
+
+def restart_self():
+    if WIN:
+        W.restart_self()
+    else:
+        subprocess.Popen(["systemctl", "--user", "--no-block", "restart", "ncc.service"])
+
+
+def apply_update(who):
+    """Runs in its own thread; the page follows APPLY and reloads when the new version answers."""
+    try:
+        update_check()
+        if not UPDATE["newer"]:
+            raise ValueError(UPDATE["error"] or "You already have the newest version.")
+        tag, kind = "v" + UPDATE["latest"], update_kind()
+        if kind == "git":
+            code, out = _git("status", "--porcelain", "--untracked-files=no")
+            if code != 0 or out:
+                raise ValueError("Program files in this folder were changed by hand, so it won't overwrite them. "
+                                 "Update by hand (see the steps below), or ask your AI assistant to help.")
+        APPLY["step"] = "Backing up"
+        bk = BASE / "backups" / f"before-update-{VERSION}-{time.strftime('%Y%m%d-%H%M%S')}"
+        bk.mkdir(parents=True)
+        _backup_program(bk)
+        APPLY["step"] = "Downloading " + tag
+        if kind == "git":
+            _, old = _git("rev-parse", "HEAD")
+            code, out = _git("fetch", "--force", "--tags", "origin", timeout=180)
+            if code != 0:
+                raise ValueError("Couldn't download the update from GitHub. Try again later.")
+            code, out = _git("merge", "--ff-only", f"refs/tags/{tag}")
+            if code != 0:
+                raise ValueError("This copy has its own commits, so git can't update it by itself. Update by hand.")
+        else:
+            _unzip_release(tag)
+        APPLY["step"] = "Checking the new version"
+        files = [str(BASE / "app" / f) for f in ("ncc.py", "doctor.py", "ncc_win.py") if (BASE / "app" / f).exists()]
+        p = subprocess.run([sys.executable, "-I", "-m", "py_compile", *files], capture_output=True, timeout=120,
+                           **({"creationflags": 0x08000000} if WIN else {}))
+        if p.returncode != 0:
+            if kind == "git":
+                _git("reset", "--keep", old)
+            else:
+                for x in bk.iterdir():
+                    if x.name != "ncc.db":
+                        (shutil.copytree(x, BASE / x.name, dirs_exist_ok=True) if x.is_dir() else shutil.copy2(x, BASE / x.name))
+            raise ValueError("The new version didn't pass its check, so the old one was put back. Please report this on GitHub.")
+        APPLY.update(step="Restarting", done=tag)
+        event("info", "update", f"Updating to {tag} (was v{VERSION}), started by {who}. Backup: backups/{bk.name}", False)
+        threading.Timer(2, restart_self).start()
+    except Exception as e:
+        APPLY.update(error=str(e) if isinstance(e, ValueError) else "The update failed: " + type(e).__name__, step="")
+        log("update failed:", repr(e))
+    finally:
+        APPLY["running"] = False
+
+
 def status_body():
     with LOCK:
         body = {"last": STATE["last"], "pihole": STATE["pihole"], "gateway": STATE["gateway"],
@@ -3291,7 +3413,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"text": weekly_report_text()})
         if path == "/api/update":
             return self._send(200, {**UPDATE, "version": VERSION, "os": "windows" if os.name == "nt" else "linux",
-                                    "on": settings().get("update_check", True)})
+                                    "on": settings().get("update_check", True), "apply": APPLY, "kind": update_kind(),
+                                    "button": CFG["UPDATE_BUTTON"] == "1", "may": self._manager()})
         if path == "/api/settings":
             return self._send(200, {**settings(), "live_periods": LIVE_PERIODS, "speed_every": SPEED_EVERY})
         if path == "/api/alerts":
@@ -3559,6 +3682,17 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e:
                     return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "users": sorted(web_users())})
+            if path == "/api/update/apply":
+                if not self._manager():
+                    return self._send(403, {"error": "Updates can only be started on this computer or one of your Tailscale devices."})
+                if CFG["UPDATE_BUTTON"] != "1":
+                    return self._send(403, {"error": "The update button is off (UPDATE_BUTTON=0 in config/ncc.env)."})
+                if APPLY["running"]:
+                    return self._send(409, {"error": "An update is already running."})
+                APPLY.update(running=True, step="Starting", error=None, done=None)
+                who = "a Tailscale device" if self._remote() else "this computer"
+                threading.Thread(target=apply_update, args=(who,), daemon=True).start()
+                return self._send(200, {"ok": True})
             if path == "/api/update/check":
                 update_check()
                 return self._send(200, {**UPDATE, "version": VERSION, "os": "windows" if os.name == "nt" else "linux"})

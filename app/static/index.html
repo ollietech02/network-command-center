@@ -150,6 +150,7 @@ button:hover{border-color:var(--cyan);color:var(--cyan)}
 #vo-banner{display:none}
 #pause-bar{display:none;grid-column:1/-1;background:var(--warnbg);border:1px solid var(--warn);color:var(--strong);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
 #upd-bar{display:none;grid-column:1/-1;background:var(--panel);border:1px solid var(--cyan);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
+#up-go{border:1px solid var(--cyan);color:var(--cyan);padding:9px 16px;font-size:13px;border-radius:6px}
 #upd-bar.show{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap}#upd-bar a{color:var(--cyan)}
 #pause-bar.show{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #pause-bar b{color:var(--warn)}
@@ -626,7 +627,7 @@ function strip(){
 function updBar(u){const b=$("#upd-bar");if(!b)return;
   if(!u||!u.newer||PREF("upd-hide","")===u.latest){b.className="";b.innerHTML="";return}
   b.innerHTML=`<span>⬆ <b>Update available: v${esc(u.latest)}</b> (you have v${esc(S.version)})</span><a href="${esc(u.url)}" target="_blank" rel="noopener">What's new</a>
-    <a href="#/tools" id="upd-how">How to update</a><button id="upd-later">Later</button>`;b.className="show"}
+    <a href="#/tools" id="upd-how">Update…</a><button id="upd-later">Later</button>`;b.className="show"}
 document.addEventListener("click",e=>{
   if(e.target.id==="upd-later"&&S.update){setPref("upd-hide",S.update.latest);updBar(S.update)}
   if(e.target.id==="upd-how")setTimeout(()=>{const x=$("#sb-up");if(x)x.scrollIntoView({block:"center"})},400)});
@@ -637,13 +638,30 @@ async function updUI(force){
     :`In the dashboard folder, run <code>git pull</code> and then <code>./ncc restart</code>. Your settings, history and accounts are kept.`;
   el.innerHTML=`<p class="sm">You have <b>v${esc(r.version)}</b>. ${r.newer?`<b style="color:var(--cyan)">v${esc(r.latest)} is out.</b> <a class="lnk" href="${esc(r.url)}" target="_blank" rel="noopener">What's new →</a>`
       :r.latest?"That's the newest version.":""} <span class="muted">${!r.checked?"Not checked yet":Date.now()/1000-r.checked<90?"Checked just now":"Checked "+ago(r.checked)}</span>${r.error?` <span style="color:var(--serious)">${esc(r.error)}</span>`:""}</p>
-    ${r.newer?`<p class="sm"><b>How to update:</b> ${how}</p>`:""}
+    ${r.newer?(r.button&&r.may?`<p><button id="up-go" class="primary">⬆ Update now to v${esc(r.latest)}</button></p>
+      <p class="sm" id="up-step">${r.apply&&r.apply.running?"⏳ "+esc(r.apply.step)+"…":r.apply&&r.apply.error?`<span style="color:var(--serious)">✖ ${esc(r.apply.error)}</span>`:"Takes about a minute. A backup is made first, and your settings, history and accounts are kept."}</p>
+      <details class="sm"><summary>Or update by hand</summary><p>${how}</p></details>`
+      :`<p class="sm"><b>How to update:</b> ${how}</p>${r.button&&!r.may?`<p class="note">The <b>Update now</b> button is on the computer itself and on your Tailscale devices.</p>`
+        :!r.button?`<p class="note">The <b>Update now</b> button is off here (UPDATE_BUTTON=0 in config/ncc.env), usually because this copy has its own changes. Ask your AI assistant to update it so those changes are kept.</p>`:""}`):""}
     <p class="sm"><label><input type="checkbox" id="up-on" ${r.on?"checked":""}> Check once a day and send my phone an alert when there's a new version</label></p>
     <p class="sm"><button id="up-check">Check now</button> <span class="sm" id="up-msg"></span></p>
     <p class="note">The check only reads the project's public release list on GitHub. Nothing about this computer or your network is sent.</p>`;
   if(force)updBar(r.newer?{latest:r.latest,newer:true,url:r.url}:null);
 }
 document.addEventListener("click",e=>{if(e.target.id==="up-check"){e.target.disabled=true;updUI(true)}});
+// Update now: the server downloads, checks and restarts; follow along, then reload when the new version answers
+document.addEventListener("click",async e=>{if(e.target.id!=="up-go")return;
+  if(!confirm("Update the dashboard now?\n\nIt makes a backup, installs the new version and restarts. The dashboard is away for about a minute; your settings, history and accounts are kept."))return;
+  e.target.disabled=true;const st=$("#up-step"),show=t=>{st.innerHTML=t};
+  const r=await api("/api/update/apply",{});if(r.error){show(`<span style="color:var(--serious)">✖ ${esc(r.error)}</span>`);e.target.disabled=false;return}
+  const from=S.version,t0=Date.now();
+  while(Date.now()-t0<240000){await new Promise(z=>setTimeout(z,1500));
+    let u=null;try{u=await (await fetch("/api/update",{cache:"no-store"})).json()}catch(x){}
+    if(u&&u.apply){if(u.apply.error){show(`<span style="color:var(--serious)">✖ ${esc(u.apply.error)}</span>`);e.target.disabled=false;return}
+      if(u.apply.running||u.apply.step!=="Restarting"){show("⏳ "+esc(u.apply.step||"Working")+"…");if(u.version===from)continue}}
+    if(u&&u.version&&u.version!==from){show(`✔ Updated to v${esc(u.version)}. Reloading…`);setTimeout(()=>location.reload(),1500);return}
+    show("⏳ Restarting…")}
+  show(`<span style="color:var(--serious)">The dashboard hasn't come back yet. Wait a minute and reload the page. If it stays down, run <code>ncc restart</code> in the dashboard folder.</span>`)});
 document.addEventListener("change",async e=>{if(e.target.id!=="up-on")return;const r=await api("/api/settings",{update_check:e.target.checked});
   if(r.error){alert(r.error);e.target.checked=!e.target.checked}else $("#up-msg").textContent="✔ Saved"});
 let SPD=null,OUT=null,BBD=null,SET=null;

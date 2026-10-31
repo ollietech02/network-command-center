@@ -30,7 +30,10 @@ This file tells you how the project works, how to check on it, how to fix common
   (ping, a website, DNS), lists devices on the network, talks to the ad blocker, runs speed tests, sends alerts, and
   serves the web page `app/static/index.html` at **http://127.0.0.1:8088** (only this computer can open it).
 - Once a day it reads the project's public release list on GitHub (`api.github.com`) to tell the person when a newer
-  version is out (setting `update_check`; Tools & settings → Updates). Nothing about the computer is sent.
+  version is out (setting `update_check`; Tools & settings → Updates). Nothing about the computer is sent. Its
+  **Update now** button (computer itself or Tailscale only) backs up to `backups/before-update-*`, then updates with
+  git (refuses if program files were edited) or the release zip, and restarts. If the person changed the code,
+  set `UPDATE_BUTTON=0` in `config/ncc.env` so their changes aren't overwritten, and update by hand.
 - Optional extras the installer can add: **Pi-hole** (Linux) or **AdGuard Home** (Linux/Windows) to block ads for every
   device, **Tailscale** to open the dashboard from a phone anywhere (privately), and **remote desktop**.
 - Python 3.9 or newer. On Linux it runs as a systemd *user* service `ncc.service`; on Windows as a Task Scheduler task
