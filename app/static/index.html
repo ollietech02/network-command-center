@@ -149,6 +149,8 @@ button:hover{border-color:var(--cyan);color:var(--cyan)}
 /* view-only web accounts: the server refuses changes; this greys out the controls so it's clear up front */
 #vo-banner{display:none}
 #pause-bar{display:none;grid-column:1/-1;background:var(--warnbg);border:1px solid var(--warn);color:var(--strong);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
+#upd-bar{display:none;grid-column:1/-1;background:var(--panel);border:1px solid var(--cyan);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
+#upd-bar.show{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap}#upd-bar a{color:var(--cyan)}
 #pause-bar.show{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #pause-bar b{color:var(--warn)}
 body.viewonly #vo-banner{display:block;background:var(--warnbg);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
@@ -331,6 +333,7 @@ button.eye,button.eye:hover{border:0;color:var(--muted)}button.eye:hover{color:v
 </header>
 <main>
 <div id="pause-bar" role="status"></div>
+<div id="upd-bar" role="status"></div>
 <div id="vo-banner">👁 View-only account: you can look at everything and use the diagnostic tools, but you can't change anything.</div>
   <!-- status tiles -->
   <section class="panel tile c2" data-v="only devices" data-span="devices:4"><h2>Devices</h2><div id="t-dev"></div></section>
@@ -425,6 +428,7 @@ button.eye,button.eye:hover{border:0;color:var(--muted)}button.eye:hover{color:v
   <section class="panel c6" data-v="only tools"><h2>Data usage</h2><div id="sb-du"></div></section>
   <section class="panel c6" data-v="only tools"><h2>Website checker</h2><div id="sb-ws"></div></section>
   <section class="panel c6 vo-ok" data-v="only tools"><h2>Wi-Fi neighbors <span class="sub">this browser only</span></h2><div id="sb-wf"></div></section>
+  <section class="panel c6" data-v="only tools"><h2>Updates <span class="sub">new versions of this dashboard</span></h2><div id="sb-up"></div></section>
   <section class="panel c12" data-v="only system troubleshoot"><h2>Restart controls <span class="sub">every button asks first</span></h2>
     <div class="rs-grid">
       <div class="rs"><b>Dashboard</b><span class="sm">Restarts the Network Command Center only. Nobody's internet is affected.</span><button data-restart="dashboard">⟳ Restart dashboard</button></div>
@@ -617,6 +621,31 @@ function strip(){
   const tot=HIST.length,up=HIST.reduce((a,h)=>a+h.internet,0);$("#avail-pct").textContent=tot?(100*up/tot).toFixed(2)+"% over "+tot+" checks":"—";
 }
 
+// ---- new versions: the server asks GitHub once a day; a banner on every device until it's updated ("Later" hides it
+// in this browser until the next version)
+function updBar(u){const b=$("#upd-bar");if(!b)return;
+  if(!u||!u.newer||PREF("upd-hide","")===u.latest){b.className="";b.innerHTML="";return}
+  b.innerHTML=`<span>⬆ <b>Update available: v${esc(u.latest)}</b> (you have v${esc(S.version)})</span><a href="${esc(u.url)}" target="_blank" rel="noopener">What's new</a>
+    <a href="#/tools" id="upd-how">How to update</a><button id="upd-later">Later</button>`;b.className="show"}
+document.addEventListener("click",e=>{
+  if(e.target.id==="upd-later"&&S.update){setPref("upd-hide",S.update.latest);updBar(S.update)}
+  if(e.target.id==="upd-how")setTimeout(()=>{const x=$("#sb-up");if(x)x.scrollIntoView({block:"center"})},400)});
+async function updUI(force){
+  const el=$("#sb-up");if(!el)return;if(force)el.querySelector("#up-msg")&&($("#up-msg").textContent="Checking…");
+  const r=force?await api("/api/update/check",{}):await api("/api/update");if(!r||r.version==null){el.innerHTML='<p class="note">Couldn\'t load.</p>';return}
+  const how=r.os==="windows"?`Download <b>Source code (zip)</b> from the release page, right-click it → Properties → Unblock, extract it over your dashboard folder (say yes to replacing files), then run <code>.\\ncc restart</code> in that folder.`
+    :`In the dashboard folder, run <code>git pull</code> and then <code>./ncc restart</code>. Your settings, history and accounts are kept.`;
+  el.innerHTML=`<p class="sm">You have <b>v${esc(r.version)}</b>. ${r.newer?`<b style="color:var(--cyan)">v${esc(r.latest)} is out.</b> <a class="lnk" href="${esc(r.url)}" target="_blank" rel="noopener">What's new →</a>`
+      :r.latest?"That's the newest version.":""} <span class="muted">${!r.checked?"Not checked yet":Date.now()/1000-r.checked<90?"Checked just now":"Checked "+ago(r.checked)}</span>${r.error?` <span style="color:var(--serious)">${esc(r.error)}</span>`:""}</p>
+    ${r.newer?`<p class="sm"><b>How to update:</b> ${how}</p>`:""}
+    <p class="sm"><label><input type="checkbox" id="up-on" ${r.on?"checked":""}> Check once a day and send my phone an alert when there's a new version</label></p>
+    <p class="sm"><button id="up-check">Check now</button> <span class="sm" id="up-msg"></span></p>
+    <p class="note">The check only reads the project's public release list on GitHub. Nothing about this computer or your network is sent.</p>`;
+  if(force)updBar(r.newer?{latest:r.latest,newer:true,url:r.url}:null);
+}
+document.addEventListener("click",e=>{if(e.target.id==="up-check"){e.target.disabled=true;updUI(true)}});
+document.addEventListener("change",async e=>{if(e.target.id!=="up-on")return;const r=await api("/api/settings",{update_check:e.target.checked});
+  if(r.error){alert(r.error);e.target.checked=!e.target.checked}else $("#up-msg").textContent="✔ Saved"});
 let SPD=null,OUT=null,BBD=null,SET=null;
 // ---- Settings card (Tools & settings): live update speed and the speed test schedule
 const everyTxt=m=>m===60?"every hour":"every "+durTxt(m,"min");
@@ -659,7 +688,7 @@ const SECTIONS=[["internet","🌐 Internet uptime and outages"],["speed","⚡ Av
   ["devices","📱 New devices"],["signins","🔐 Web sign-ins"],["sites","🌍 Websites"],["laptop","💻 Laptop restarts"]];
 const saveRow=k=>`<p style="margin-top:12px"><button data-save="${k}">Save</button> <span class="sm" id="msg-${k}"></span></p>`;
 async function settingsUI(){
-  aiUI().catch(()=>{});
+  aiUI().catch(()=>{});updUI().catch(()=>{});
   SET=await api("/api/settings");if(!SET||SET.live_period==null){$("#set").innerHTML='<p class="note">Couldn\'t load settings.</p>';return}
   const opt=(v,t,cur)=>`<option value="${v}" ${v===cur?"selected":""}>${t}</option>`;
   const sel=(id,opts,cur,lbl)=>`<select id="${id}" aria-label="${lbl}">${opts.map(([v,t])=>opt(v,t,cur)).join("")}</select>`;
@@ -1044,6 +1073,7 @@ const WHY=[
   {m:/^(Internet up|Pi-hole enabled)/,lvl:"good",t:"Internet up / Pi-hole enabled",what:"Working normally.",fix:["Nothing to do."]}]},
  {grp:"Alerts (Security tab events and phone notifications)",items:[
   {m:/^web-signin$/,lvl:"warn",t:"Web sign-in",what:"Someone signed in to the dashboard from a web browser (not through Tailscale), with the username shown.",fix:["If it was you or your family, nothing to do.","If not: in Security → Web access, remove that account or press Turn off (Security tab → Web access)."]},
+  {m:/^update$/,lvl:"info",t:"New version",what:"A newer version of Network Command Center is out on GitHub. Updating keeps your settings, history and accounts.",fix:["Open Tools & settings → Updates for the steps on this computer.","Read \"What's new\" first if you like. You can turn these alerts off in the same card."]},
   {m:/^web-reset$/,lvl:"warn",t:"Password reset",what:"Someone used \"Forgot password?\" on the web sign-in page. A code went to that account's sign-in email; with it they picked a new password and were signed in.",fix:["If it was them, nothing to do.","If it wasn't, remove the account or turn web access off, and check that person's email account is secure."]},
   {m:/^web-signin-fail$/,lvl:"warn",t:"Wrong web sign-in",what:"Someone typed a wrong username or password on the web sign-in page. After 5 in an hour, web sign-in locks for an hour.",fix:["If it was a family member mistyping, ignore it (Unlock now is in Security → Web access).","If it keeps happening, someone may be guessing: turn web access off."]},
   {m:/^remote-desktop$/,lvl:"info",t:"Remote desktop from the internet",what:"An older note: remote desktop was switched on or off for the open internet. That switch has been removed; remote desktop now only works from your home Wi-Fi and Tailscale devices.",fix:["Nothing to do."]},
@@ -1592,6 +1622,7 @@ async function load(){
   try{
     [S,HIST]=await Promise.all([api("/api/status"),api("/api/history?hours="+$("#range").value)]);
     if(S.version)$("#ver").textContent="v"+S.version;
+    updBar(S.update);
     if(S.version)$("#bug-link").href="https://github.com/ollietech02/network-command-center/issues/new?template=bug_report.yml&version="+encodeURIComponent(S.version)+"&system="+encodeURIComponent(S.last&&S.last.sys&&S.last.sys.os==="windows"?"Windows":"Linux");
     const d=await api("/api/devices");DEV=d.devices;BLK=d.blocked||{};CAN_BLOCK=!!d.can_block;
     $("#ai-sub").textContent=S.config.ai?"rules + "+S.config.ai_name:"rule-based · AI off";

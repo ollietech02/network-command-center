@@ -201,7 +201,7 @@ def settings():
         every = 60
     s = {"live_period": 1, "speedtest_mode": "every", "speedtest_every_min": every, "speedtest_at": "03:00", "web_access": False,
          "web_session_h": 168, "pin_session_h": 720, "weekly_report": True, "weekly_day": 6, "weekly_hour": 18,
-         "weekly_sections": list(WEEKLY_SECTIONS), "speed_quiet_on": False, "speed_quiet_from": "23:00", "speed_quiet_to": "07:00",
+         "weekly_sections": list(WEEKLY_SECTIONS), "update_check": True, "speed_quiet_on": False, "speed_quiet_from": "23:00", "speed_quiet_to": "07:00",
          "speed_alert_mbps": 0, "data_cap_gb": 0, "billing_day": 1, "site_interval_min": 5, "site_fail_n": 2, "site_slow_ms": 0}
     s.update(kv_get("settings", {}) or {})
     return s
@@ -231,6 +231,8 @@ def save_settings(body):
         if not s["web_access"]:
             kv_set("settings", s)
             kick_streams()  # web visitors watching right now are cut off
+    if "update_check" in body:
+        s["update_check"] = body["update_check"] is True
     if "weekly_report" in body:
         s["weekly_report"] = body["weekly_report"] is True
     if "weekly_day" in body:
@@ -2238,6 +2240,10 @@ def loop():
             pause_tick()
         except Exception as e:
             log("pause tick error:", repr(e))
+        try:
+            update_tick()
+        except Exception as e:
+            log("update tick error:", repr(e))
         if t0 >= next_dev:
             for fn in (refresh_devices, scan_auth_log, scan_listeners):
                 try:
@@ -3047,11 +3053,52 @@ def action(name, arg):
     raise ValueError("Unknown action")
 
 
+# ---- new versions (asked for by the user 2026-10-30): once a day, ask GitHub which release is newest. Only GitHub's
+# public release list is read; nothing about this computer is sent. When there's a newer one, the dashboard shows a
+# banner on every device and your phone gets one alert per new version. Off with the setting "update_check".
+REPO = "ollietech02/network-command-center"
+UPDATE = {"latest": None, "newer": False, "url": None, "checked": 0, "error": None}
+
+
+def _vt(v):
+    return tuple(int(x) for x in re.findall(r"\d+", str(v))[:3]) + (0,) * 3
+
+
+def update_check():
+    UPDATE["checked"] = time.time()
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                     headers={"Accept": "application/vnd.github+json", "User-Agent": f"network-command-center/{VERSION}"})
+        with urllib.request.urlopen(req, timeout=15, context=ssl_ctx()) as r:
+            j = json.loads(r.read(500_000))
+    except Exception as e:
+        UPDATE["error"] = "Couldn't reach GitHub."
+        log("update check failed:", type(e).__name__)
+        return
+    tag, url = str(j.get("tag_name") or ""), str(j.get("html_url") or "")
+    if not re.fullmatch(r"v?\d+(\.\d+){0,2}", tag) or not url.startswith(f"https://github.com/{REPO}/releases/"):
+        UPDATE["error"] = "GitHub sent something unexpected."
+        return
+    newer = _vt(tag)[:3] > _vt(VERSION)[:3]
+    UPDATE.update(latest=tag.lstrip("v"), newer=newer, url=url, error=None)
+    if newer and kv_get("update_told") != tag:
+        kv_set("update_told", tag)
+        event("info", "update", f"Network Command Center {tag} is out (you have v{VERSION}). Open the dashboard to see "
+              "what's new and how to update.", "phone")
+
+
+def update_tick():
+    if settings().get("update_check", True) and time.time() - UPDATE["checked"] > 86400:
+        UPDATE["checked"] = time.time()  # one try a day, even if this one fails
+        threading.Thread(target=update_check, daemon=True).start()
+
+
 def status_body():
     with LOCK:
         body = {"last": STATE["last"], "pihole": STATE["pihole"], "gateway": STATE["gateway"],
                 "device_meta": STATE.get("device_meta"), "security": STATE["security"],
                 "uptime": uptime_stats(), "findings": diagnose(), "started": STATE["started"], "version": VERSION,
+                "update": {k: UPDATE[k] for k in ("latest", "newer", "url")} if UPDATE["newer"] else None,
                 "config": {"interval": CFG["INTERVAL"], "wan_target": CFG["WAN_TARGET"],
                            "ai": ai_assistant() != "off", "ai_name": AI_TOOLS.get(ai_assistant()), "pihole_controls": CFG["PIHOLE_CONTROLS"] == "1",
                            "pihole_lists": CFG["PIHOLE_LISTS"] == "1",
@@ -3242,6 +3289,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, wifi_neighbors(q.get("rescan") == "1"))
         if path == "/api/report/weekly":
             return self._send(200, {"text": weekly_report_text()})
+        if path == "/api/update":
+            return self._send(200, {**UPDATE, "version": VERSION, "os": "windows" if os.name == "nt" else "linux",
+                                    "on": settings().get("update_check", True)})
         if path == "/api/settings":
             return self._send(200, {**settings(), "live_periods": LIVE_PERIODS, "speed_every": SPEED_EVERY})
         if path == "/api/alerts":
@@ -3509,6 +3559,9 @@ class H(BaseHTTPRequestHandler):
                 except ValueError as e:
                     return self._send(400, {"error": str(e)})
                 return self._send(200, {"ok": True, "users": sorted(web_users())})
+            if path == "/api/update/check":
+                update_check()
+                return self._send(200, {**UPDATE, "version": VERSION, "os": "windows" if os.name == "nt" else "linux"})
             if path == "/api/settings":
                 if "ai_assistant" in body and self._remote():
                     return self._send(403, {"error": "The AI assistant can only be chosen on the computer itself."})

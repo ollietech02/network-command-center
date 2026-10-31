@@ -157,6 +157,9 @@ It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailsc
   or until you press **Resume**, then come back by themselves. Monitoring, the ad blocker and alerts keep running.
 - **Pick your own times:** every time menu (speed tests, website checks, how long a sign-in lasts, history, Pause and
   more) has a **Custom…** choice. Type a number or something like `90 min`, `1.5 h` or `3 days`.
+- **New versions:** once a day the dashboard checks GitHub for a newer release. When there is one, a banner appears at the
+  top of the dashboard and your phone gets an alert. **Tools & settings → Updates** shows how to update (your settings
+  and history are kept) and has an off switch. Only the public release list is read; nothing about your computer is sent.
 - **Something wrong?** See [Found a bug?](#found-a-bug) below.
 
 ## Whole-home ad blocking
