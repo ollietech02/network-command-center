@@ -2315,10 +2315,25 @@ LIVE_COND = threading.Condition()
 LIVE_PERIOD = 1.0
 # The gateway page takes ~0.6 s and Pi-hole a few ms. Both are fetched in a helper thread so a slow reply never holds
 # up the 1-second frame; each frame carries the newest values they have.
-LIVE_SRC = {"wan": {}, "pihole": None, "busy": False}
+LIVE_SRC = {"wan": {}, "pihole": None, "busy_wan": False, "busy_ph": False}
+SELF_CLIENTS = {"localhost", "127.0.0.1", "::1", "ip6-localhost"}
+
+
+def self_check_names():
+    """Domains the dashboard itself looks up for its health checks (hidden from the live lookup feed)."""
+    host = urllib.parse.urlsplit(CFG.get("HTTPS_URL") or "").hostname
+    return {n.lower().rstrip(".") for n in (CFG.get("DNS_TEST_NAME"), host) if n}
+
+
+def hide_self_checks(qs):
+    names = self_check_names()
+    return [q for q in qs or [] if not (str(q.get("client") or "").lower() in SELF_CLIENTS
+                                        and str(q.get("domain") or "").lower().rstrip(".") in names)]
 
 
 def live_fetch(want_wan, want_ph, ph_hist):
+    """Runs in its own thread: one call fetches the gateway OR Pi-hole, so the slow gateway page
+    (about a second) never holds up the DNS lookup feed."""
     try:
         if want_wan:
             try:
@@ -2343,12 +2358,12 @@ def live_fetch(want_wan, want_ph, ph_hist):
                         ph_hist.popleft()
                 old = ph_hist[0] if ph_hist else None
                 ph["qpm"] = round((st["total"] - old[0]) * 60 / (t - old[1]), 1) if old and t - old[1] >= 10 else None
-                ph.update({"ok": True, "queries": PIHOLE.recent_queries(25)})
+                ph.update({"ok": True, "queries": hide_self_checks(PIHOLE.recent_queries(50))})
                 LIVE_SRC["pihole"] = ph
             except Exception as e:
                 LIVE_SRC["pihole"] = {"ok": False, "error": type(e).__name__}
     finally:
-        LIVE_SRC["busy"] = False
+        LIVE_SRC["busy_wan" if want_wan else "busy_ph"] = False
 
 
 def live_loop():
@@ -2377,12 +2392,13 @@ def live_loop():
             nic_prev = (nd[0], nd[1], t0) if nd else None
             period = settings()["live_period"]
             frame["period"] = period
-            if not LIVE_SRC["busy"]:
-                want_wan, want_ph = t0 - wan_t >= period - .2, bool(PIHOLE) and t0 - ph_t >= period - .2
-                if want_wan or want_ph:
-                    wan_t, ph_t = (t0 if want_wan else wan_t), (t0 if want_ph else ph_t)
-                    LIVE_SRC["busy"] = True
-                    threading.Thread(target=live_fetch, args=(want_wan, want_ph, ph_hist), daemon=True).start()
+            # gateway and Pi-hole are fetched in separate threads so one slow source can't delay the other.
+            if not LIVE_SRC["busy_wan"] and t0 - wan_t >= period - .2:
+                wan_t, LIVE_SRC["busy_wan"] = t0, True
+                threading.Thread(target=live_fetch, args=(True, False, ph_hist), daemon=True).start()
+            if PIHOLE and not LIVE_SRC["busy_ph"] and t0 - ph_t >= period - .2:
+                ph_t, LIVE_SRC["busy_ph"] = t0, True
+                threading.Thread(target=live_fetch, args=(False, True, ph_hist), daemon=True).start()
             frame["wan"] = LIVE_SRC["wan"]
             frame["pihole"] = LIVE_SRC["pihole"]
             with LIVE_COND:
