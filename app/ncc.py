@@ -204,9 +204,28 @@ def settings():
     s = {"live_period": 1, "speedtest_mode": "every", "speedtest_every_min": every, "speedtest_at": "03:00", "web_access": False,
          "web_session_h": 168, "pin_session_h": 720, "weekly_report": True, "weekly_day": 6, "weekly_hour": 18,
          "weekly_sections": list(WEEKLY_SECTIONS), "update_check": True, "speed_quiet_on": False, "speed_quiet_from": "23:00", "speed_quiet_to": "07:00",
-         "speed_alert_mbps": 0, "data_cap_gb": 0, "billing_day": 1, "site_interval_min": 5, "site_fail_n": 2, "site_slow_ms": 0}
+         "speed_alert_mbps": 0, "data_cap_gb": 0, "billing_day": 1, "site_interval_min": 5, "site_fail_n": 2, "site_slow_ms": 0,
+         "look_style": "", "look_theme": "", "look_accent": "cyan"}  # default look; "" = from the install (STYLE)
     s.update(kv_get("settings", {}) or {})
     return s
+
+
+LOOKS = {"look_style": ("scifi", "hacker", "clean"), "look_theme": ("dark", "light", "auto"),
+         "look_accent": ("cyan", "green", "purple", "orange", "pink")}
+
+
+def default_look():
+    """The look a browser starts with until its user picks their own (Tools & settings -> Appearance)."""
+    s = settings()
+    style = s.get("look_style") if s.get("look_style") in LOOKS["look_style"] else (CFG["STYLE"] if CFG["STYLE"] in LOOKS["look_style"] else "scifi")
+    theme = s.get("look_theme") if s.get("look_theme") in LOOKS["look_theme"] else ("light" if style == "clean" else "dark")
+    accent = s.get("look_accent") if s.get("look_accent") in LOOKS["look_accent"] else "cyan"
+    return {"style": style, "theme": theme, "accent": accent}
+
+
+def fill_look(page):
+    d = default_look()
+    return page.replace("__STYLE__", d["style"]).replace("__THEME__", d["theme"]).replace("__ACCENT__", d["accent"])
 
 
 def save_settings(body):
@@ -266,6 +285,11 @@ def save_settings(body):
         if body["site_fail_n"] not in (1, 2, 3, 5):
             raise ValueError("Unknown number of failures.")
         s["site_fail_n"] = body["site_fail_n"]
+    for k, ok in LOOKS.items():
+        if k in body:
+            if body[k] not in ok:
+                raise ValueError("Unknown style, theme or accent color.")
+            s[k] = body[k]
     if "weekly_sections" in body:
         if not isinstance(body["weekly_sections"], list) or not set(body["weekly_sections"]) <= set(WEEKLY_SECTIONS):
             raise ValueError("Unknown report section.")
@@ -3390,10 +3414,11 @@ class H(BaseHTTPRequestHandler):
                 "blocked": "This device is blocked from signing in."}[mode])
             return self._send(200, page, "text/html; charset=utf-8")
         if path in ("/", "/index.html"):
-            page = (STATIC / "index.html").read_text().replace("__CSRF__", CSRF).replace("__STYLE__", CFG["STYLE"] if CFG["STYLE"] in ("scifi", "hacker", "clean") else "scifi")
+            page = (STATIC / "index.html").read_text().replace("__CSRF__", CSRF)
+            page = fill_look(page)
             return self._send(200, page, "text/html; charset=utf-8")
         if path in ("/wall", "/tv"):
-            return self._send(200, (STATIC / "wall.html").read_bytes(), "text/html; charset=utf-8")
+            return self._send(200, fill_look((STATIC / "wall.html").read_text()), "text/html; charset=utf-8")
         if path == "/api/live":
             return self._sse()
         if path in ("/manifest.webmanifest", "/icon.svg"):
@@ -3466,7 +3491,8 @@ class H(BaseHTTPRequestHandler):
                                     "on": settings().get("update_check", True), "apply": APPLY, "kind": update_kind(),
                                     "button": CFG["UPDATE_BUTTON"] == "1", "may": self._manager()})
         if path == "/api/settings":
-            return self._send(200, {**settings(), "live_periods": LIVE_PERIODS, "speed_every": SPEED_EVERY})
+            return self._send(200, {**settings(), "live_periods": LIVE_PERIODS, "speed_every": SPEED_EVERY,
+                                    "look": default_look(), "you_manage": self._manager()})
         if path == "/api/alerts":
             u = ntfy_url()
             m = re.match(r"(https?://[^/]+)/([\w-]+)$", u)
@@ -3749,7 +3775,7 @@ class H(BaseHTTPRequestHandler):
             if path == "/api/settings":
                 if "ai_assistant" in body and self._remote():
                     return self._send(403, {"error": "The AI assistant can only be chosen on the computer itself."})
-                if not self._manager() and {"web_access", "web_session_h", "pin_session_h"} & set(body):
+                if not self._manager() and {"web_access", "web_session_h", "pin_session_h", *LOOKS} & set(body):
                     return self._send(403, {"error": "Only on the laptop or one of your Tailscale devices (not from the open web)."})
                 if body.get("web_access") is True and paused():
                     return self._send(400, {"error": "The dashboard is paused. Press Resume first."})

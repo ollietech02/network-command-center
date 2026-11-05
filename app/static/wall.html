@@ -6,6 +6,23 @@
 <title>NCC · Display</title>
 <link rel="icon" href="/icon.svg">
 <meta name="theme-color" content="#05090d">
+<script>
+// Same look as the dashboard: Tools & settings -> Appearance (theme + accent, saved per browser;
+// until this browser picks its own, the server fills in the default look for everyone).
+// Follows changes live: from the dashboard (storage event) and from the computer's own light/dark setting ("Match this device").
+(function(){const d=document.documentElement,mq=matchMedia("(prefers-color-scheme: light)");
+  const get=(k,f)=>{try{const v=localStorage.getItem(k);return v==null?f:v}catch(e){return f}};
+  const DS="__STYLE__",DT="__THEME__",DA="__ACCENT__";
+  const apply=()=>{let y=DS;try{y=JSON.parse(get("ncc-style","null"))||DS}catch(e){}
+    let t=get("ncc-theme",DT);if(t==="auto")t=mq.matches?"light":"dark";if(y==="hacker")t="dark";
+    let a=DA;try{a=JSON.parse(get("ncc-accent",JSON.stringify(DA)))}catch(e){}
+    d.dataset.theme=t;d.dataset.accent=a;
+    const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==="light"?"#eef3f6":"#05090d"};
+  apply();window.nccWallLook=apply;
+  try{mq.addEventListener("change",apply)}catch(e){}
+  addEventListener("storage",e=>{if(!e.key||e.key.startsWith("ncc-"))apply()});
+  addEventListener("pageshow",apply);document.addEventListener("visibilitychange",()=>{if(!document.hidden)apply()})})();
+</script>
 <style>
 :root{
   --bg:#05090d; --panel:#0b131b; --line:#163042; --line2:#1f4359;
@@ -15,7 +32,20 @@
   --mono:ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
   /* one unit that scales with the screen, so a TV and a laptop look the same */
   --u:min(1vw,1.78vh);
+  --scrim:rgba(5,9,13,.86); --glow1:rgba(63,208,230,.07); --glow2:rgba(57,135,229,.06); --chipbg:rgba(63,208,230,.05);
+  color-scheme:dark;
 }
+:root[data-accent="green"]{--cyan:#3fd98a} :root[data-accent="purple"]{--cyan:#a98bff} :root[data-accent="orange"]{--cyan:#ffa24a} :root[data-accent="pink"]{--cyan:#ff7ab8}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#eef3f6; --panel:#ffffff; --line:#d2dde4; --line2:#b6c7d1;
+  --ink:#0e1c25; --ink2:#3d5562; --muted:#647b89;
+  --cyan:#0a7f92; --blue:#1d64c4;
+  --good:#0b7d0b; --good-ink:#0b7d0b; --warn:#a86e00; --crit:#c02c2c; --crit-ink:#c02c2c;
+  --scrim:rgba(238,243,246,.9); --glow1:rgba(10,127,146,.06); --glow2:rgba(29,100,196,.05); --chipbg:rgba(10,127,146,.06);
+}
+:root[data-theme="light"][data-accent="green"]{--cyan:#0b7d45} :root[data-theme="light"][data-accent="purple"]{--cyan:#6a3fd1}
+:root[data-theme="light"][data-accent="orange"]{--cyan:#b45a00} :root[data-theme="light"][data-accent="pink"]{--cyan:#b8327a}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
   font:calc(var(--u)*1.5)/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -24,7 +54,7 @@ body.idle{cursor:none}
   grid-template-columns:1.25fr 1fr 1fr 1fr;grid-template-rows:auto 1.15fr .95fr 1.7fr auto;
   grid-template-areas:"hd hd hd hd" "hero hero dev dev" "ads net gw spd" "feed feed list list" "ft ft ft ft";
   transition:transform 2s ease;
-  background:radial-gradient(ellipse at 20% 0%,rgba(63,208,230,.07),transparent 55%),radial-gradient(ellipse at 100% 100%,rgba(57,135,229,.06),transparent 50%)}
+  background:radial-gradient(ellipse at 20% 0%,var(--glow1),transparent 55%),radial-gradient(ellipse at 100% 100%,var(--glow2),transparent 50%)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:calc(var(--u)*1.2);padding:calc(var(--u)*1.3) calc(var(--u)*1.7);
   min-height:0;min-width:0;overflow:hidden;position:relative}
 .lbl{font:600 calc(var(--u)*1.05) var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
@@ -84,7 +114,7 @@ header{grid-area:hd;display:grid;grid-template-columns:minmax(0,1fr) auto minmax
 /* online list */
 #list{grid-area:list;display:flex;flex-direction:column}
 #chips{display:flex;flex-wrap:wrap;align-content:flex-start;gap:calc(var(--u)*.7);margin-top:calc(var(--u)*1);flex:1;min-height:0;overflow:hidden}
-.chip{border:1px solid var(--line2);background:rgba(63,208,230,.05);border-radius:999px;padding:calc(var(--u)*.35) calc(var(--u)*1.05);
+.chip{border:1px solid var(--line2);background:var(--chipbg);border-radius:999px;padding:calc(var(--u)*.35) calc(var(--u)*1.05);
   font-size:calc(var(--u)*1.15);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .chip .sw{width:.6em;height:.6em;border-radius:50%}
 .chip.blk{border-color:var(--crit);color:var(--crit-ink)}
@@ -93,7 +123,7 @@ footer{grid-area:ft;display:flex;gap:calc(var(--u)*2.4);flex-wrap:wrap;font:calc
 footer b{color:var(--ink2);font-weight:500}
 footer .r{margin-left:auto}
 
-#gone{position:absolute;inset:0;display:none;place-items:center;background:rgba(5,9,13,.86);z-index:5;text-align:center}
+#gone{position:absolute;inset:0;display:none;place-items:center;background:var(--scrim);z-index:5;text-align:center}
 #gone.on{display:grid}
 #gone h2{font:700 calc(var(--u)*4) var(--mono);color:var(--warn);margin:0 0 calc(var(--u)*1)}
 #gone p{font-size:calc(var(--u)*1.8);color:var(--ink2);margin:0}
@@ -150,8 +180,8 @@ body.idle #hint{opacity:0}
     <div class="big" id="net-n">—</div>
     <div class="sub" id="net-sub">&nbsp;</div>
     <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fd0e6" stop-opacity=".35"/><stop offset="1" stop-color="#3fd0e6" stop-opacity="0"/></linearGradient></defs>
-      <path id="spark-a" fill="url(#g)"/><path id="spark-l" fill="none" stroke="#3fd0e6" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--cyan)" stop-opacity=".35"/><stop offset="1" style="stop-color:var(--cyan)" stop-opacity="0"/></linearGradient></defs>
+      <path id="spark-a" fill="url(#g)"/><path id="spark-l" fill="none" style="stroke:var(--cyan)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
     </svg>
   </section>
 

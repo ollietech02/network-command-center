@@ -14,16 +14,22 @@
 <meta name="apple-mobile-web-app-title" content="NCC">
 <script>
 // theme before first paint: "dark" | "light" | "auto" (follow the device), remembered per browser.
-// Style = the overall look: "scifi" | "hacker" | "clean". The server fills in the one picked at install time.
-(function(){const DS="__STYLE__",dt=DS==="clean"?"light":"dark";let t=dt;try{t=localStorage.getItem("ncc-theme")||dt}catch(e){}
+// Style = the overall look: "scifi" | "hacker" | "clean". The server fills in the default look for everyone
+// (Tools & settings -> Appearance -> Default for everyone); a choice made in this browser wins over it.
+(function(){const DS="__STYLE__",dt="__THEME__",DA="__ACCENT__";let t=dt;try{t=localStorage.getItem("ncc-theme")||dt}catch(e){}
   const set=()=>document.documentElement.dataset.theme=t==="auto"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):t;
   set();try{matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{if(t==="auto")set()})}catch(e){}
   window.nccLook=()=>{const d=document.documentElement;let z=1,a="cyan",y=DS;
-    try{z=JSON.parse(localStorage.getItem("ncc-size")||"1");a=JSON.parse(localStorage.getItem("ncc-accent")||'"cyan"');y=JSON.parse(localStorage.getItem("ncc-style")||"null")||DS}catch(e){}
+    try{z=JSON.parse(localStorage.getItem("ncc-size")||"1");a=JSON.parse(localStorage.getItem("ncc-accent")||JSON.stringify(DA));y=JSON.parse(localStorage.getItem("ncc-style")||"null")||DS}catch(e){}
     if(!["scifi","hacker","clean"].includes(y))y="scifi";
     d.style.zoom=z;d.dataset.accent=a;d.dataset.style=y};nccLook();
   window.nccStyleDefault=DS;
-  window.nccTheme=v=>{t=v;try{localStorage.setItem("ncc-theme",v)}catch(e){}set()};window.nccThemeGet=()=>t})();
+  window.nccTheme=v=>{t=v;try{localStorage.setItem("ncc-theme",v)}catch(e){}set()};window.nccThemeGet=()=>t;
+  // forget this browser's own picks and go back to the default look (or a new default just saved)
+  window.nccUseDefault=(L)=>{L=L||{style:DS,theme:dt,accent:DA};
+    try{["ncc-theme","ncc-style","ncc-accent"].forEach(k=>localStorage.removeItem(k))}catch(e){}
+    t=L.theme;set();const d=document.documentElement;d.dataset.accent=L.accent;d.dataset.style=L.style};
+  window.nccOwnLook=()=>{try{return ["ncc-theme","ncc-style","ncc-accent"].some(k=>localStorage.getItem(k)!=null)}catch(e){return false}}})();
 </script>
 <style>
 :root{
@@ -155,7 +161,7 @@ button:hover{border-color:var(--cyan);color:var(--cyan)}
 #pause-bar.show{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #pause-bar b{color:var(--warn)}
 body.viewonly #vo-banner{display:block;background:var(--warnbg);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:8px 12px;margin:0 0 12px;font:13px var(--mono)}
-body.viewonly main section:not(.vo-ok) :is(button,select,input,textarea):not([data-copy]):not(#ra-out):not(#dev-f):not(#set-theme):not(#set-chart){opacity:.4;pointer-events:none}
+body.viewonly main section:not(.vo-ok) :is(button,select,input,textarea):not([data-copy]):not(#ra-out):not(#dev-f):not(#set-theme):not(#set-chart):not(#look-reset){opacity:.4;pointer-events:none}
 .al-h{font:600 13px var(--mono);letter-spacing:.06em;color:var(--cyan);margin:18px 0 4px}
 #tvmode:hover{border-color:var(--cyan);color:var(--cyan)}
 button.danger:hover{border-color:var(--serious);color:var(--serious)}
@@ -712,11 +718,20 @@ async function settingsUI(){
   const sel=(id,opts,cur,lbl)=>`<select id="${id}" aria-label="${lbl}">${opts.map(([v,t])=>opt(v,t,cur)).join("")}</select>`;
   // a time menu with "Custom…": presets plus the saved value if it was a custom one
   const tsel=(id,list,cur,lbl,u,lo,hi,txt)=>`<select id="${id}" aria-label="${lbl}" ${custAttr(u,lo,hi)}>${withCur(list,cur).map(v=>opt(v,txt?txt(v):durTxt(v,u),cur)).join("")}${custOpt}</select>`;
+  $("#set-panel .sub").textContent=SET.you_manage?"this browser + default for everyone":"this browser only";
   $("#set").innerHTML=`<p class="sm">Style ${sel("set-style",[["scifi","Sci-fi"],["hacker","Hacker"],["clean","Clean"]],document.documentElement.dataset.style,"Style")}</p>
     <p class="sm">Theme ${sel("set-theme",[["dark","Dark"],["light","Light"],["auto","Match this device"]],nccThemeGet(),"Theme")}</p>
     <p class="sm">Text size ${sel("set-size",[["0.9","Smaller"],["1","Normal"],["1.15","Larger"],["1.3","Largest"]],String(PREF("size",1)),"Text size")}</p>
-    <p class="sm">Accent color ${sel("set-accent",[["cyan","Cyan"],["green","Green"],["purple","Purple"],["orange","Orange"],["pink","Pink"]],PREF("accent","cyan"),"Accent color")}</p>
-    <p class="note">These change right away and are saved for this browser only, so each person can pick their own.</p>`;
+    <p class="sm">Accent color ${sel("set-accent",[["cyan","Cyan"],["green","Green"],["purple","Purple"],["orange","Orange"],["pink","Pink"]],document.documentElement.dataset.accent,"Accent color")}</p>
+    <p class="note">These change right away and are saved for this browser only, so each person can pick their own.
+      <span id="look-own">${nccOwnLook()?`This browser has its own look. <button id="look-reset">Use the default look</button>`:"This browser is using the default look."}</span></p>
+    ${SET.you_manage?`<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px">
+      <p class="sm"><b>Default for everyone</b></p>
+      <p class="sm">Style ${sel("def-style",[["scifi","Sci-fi"],["hacker","Hacker"],["clean","Clean"]],SET.look.style,"Default style")}
+        Theme ${sel("def-theme",[["dark","Dark"],["light","Light"],["auto","Match their device"]],SET.look.theme,"Default theme")}
+        Accent ${sel("def-accent",[["cyan","Cyan"],["green","Green"],["purple","Purple"],["orange","Orange"],["pink","Pink"]],SET.look.accent,"Default accent color")}</p>
+      <p class="note">What the dashboard and Display mode look like for anyone who hasn't picked their own above. People can still change theirs any time; their choice is kept.</p>
+      ${saveRow("look")}</div>`:""}`;
   $("#sb-live").innerHTML=`<p class="sm">Update every ${tsel("set-live",SET.live_periods,SET.live_period,"Update speed","s",1,60,v=>v===1?"second":durTxt(v,"s"))}</p>
     <p class="sm">Live charts show the last ${tsel("set-chart",[5,10,15,30],PREF("chart-min",5),"Chart length","min",1,60)} <span class="muted">(this browser)</span></p>
     <p class="note">How often the dashboard and Display mode refresh CPU, ping, download right now and Pi-hole. Faster uses a little more of the laptop's CPU while a dashboard is open (about 3% at every second).</p>${saveRow("live")}`;
@@ -758,11 +773,15 @@ function setShow(){
     (mode==="every"&&m<=10?" That's a lot: only use it for a short check, then change it back.":"");
 }
 document.addEventListener("change",e=>{if(["set-mode","set-every","set-quiet"].includes(e.target.id))setShow()});
+document.addEventListener("click",e=>{if(e.target.id!=="look-reset")return;nccUseDefault(SET&&SET.look);try{charts()}catch(x){}
+  $("#set-style").value=SET.look.style;$("#set-theme").value=SET.look.theme;$("#set-accent").value=SET.look.accent;
+  $("#look-own").textContent="This browser is using the default look."});
 document.addEventListener("click",async e=>{
   if(e.target.id==="wk-prev"){const r=await api("/api/report/weekly");$("#wk-text").hidden=false;$("#wk-text").textContent=r.text||"—";return}
   if(e.target.id==="wk-send"){$("#wk-msg").textContent="Sending…";const r=await api("/api/report/weekly",{});$("#wk-msg").textContent=r.error?"✖ "+r.error:"✔ Sent. Check the ntfy app."}});
 // per-browser settings apply as soon as they change
 document.addEventListener("change",e=>{const id=e.target.id,v=e.target.value;
+  if(["set-theme","set-style","set-accent"].includes(id)&&$("#look-own"))setTimeout(()=>$("#look-own").innerHTML=`This browser has its own look. <button id="look-reset">Use the default look</button>`);
   if(id==="set-theme"){nccTheme(v);try{charts()}catch(x){}}
   if(id==="set-size"){setPref("size",+v);nccLook()}
   if(id==="set-style"){setPref("style",v);nccLook();try{charts()}catch(x){}}
@@ -776,10 +795,14 @@ const SAVE={
   wk:()=>({weekly_report:$("#set-wk").checked,weekly_day:+$("#set-wkd").value,weekly_hour:+$("#set-wkh").value,
     weekly_sections:[...document.querySelectorAll("[data-wks]")].filter(x=>x.checked).map(x=>x.dataset.wks)}),
   du:()=>({data_cap_gb:Math.round(+$("#set-cap").value||0),billing_day:Math.round(+$("#set-bill").value||1)}),
+  look:()=>({look_style:$("#def-style").value,look_theme:$("#def-theme").value,look_accent:$("#def-accent").value}),
   ws:()=>({site_interval_min:+$("#set-wsi").value,site_fail_n:+$("#set-wsf").value,site_slow_ms:Math.round(+$("#set-wss").value||0)})};
 document.addEventListener("click",async e=>{const k=e.target.dataset&&e.target.dataset.save;if(!k||!SAVE[k])return;
   const m=$("#msg-"+k);m.textContent="Saving…";const r=await api("/api/settings",SAVE[k]());
   if(r.error){m.textContent="✖ "+r.error;return}
+  if(k==="look"){const L={style:r.look_style,theme:r.look_theme,accent:r.look_accent};SET.look=L;
+    if(!nccOwnLook()){nccUseDefault(L);try{charts()}catch(x){}
+      $("#set-style").value=L.style;$("#set-theme").value=L.theme;$("#set-accent").value=L.accent}}  // this browser follows the default: show the new one now
   SET={...SET,...r};m.textContent="✔ Saved";setTimeout(()=>{if(m.textContent==="✔ Saved")m.textContent=""},4000);speedUI();
   if(k==="du"||k==="ws")internetExtras()});
 const fmtMin=s=>s<60?Math.round(s)+" s":s<3600?Math.round(s/60)+" min":(s/3600).toFixed(1)+" h";

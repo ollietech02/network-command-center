@@ -152,6 +152,7 @@ It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailsc
   many devices are using the ad blocker so you can tell when it's working. The short version is below.
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
 - **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
+- **Default look for everyone:** on the computer itself or a Tailscale device, **Tools & settings → Appearance → Default for everyone** sets the style, theme (dark, light or match the device) and accent color that the dashboard and Display mode start with. Anyone can still pick their own; **Use the default look** goes back to it.
 - **Using the computer yourself for a while?** Press **⏸ Pause** at the top of the dashboard (on the computer itself).
   Public web access and automatic speed tests switch off for 30 minutes to 4 hours, a time you type in (**Custom…**),
   or until you press **Resume**, then come back by themselves. Monitoring, the ad blocker and alerts keep running.
