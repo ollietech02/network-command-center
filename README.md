@@ -151,7 +151,7 @@ It removes the dashboard and asks separately about Pi-hole, AdGuard Home, Tailsc
   The **Whole-home setup** guide shows the steps for your router, with your own addresses filled in, and counts how
   many devices are using the ad blocker so you can tell when it's working. The short version is below.
 - **Phone alerts and email:** set them up in the dashboard's **Security** tab.
-- **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own.
+- **Change the look:** **Tools & settings → Appearance → Style**. Each browser can pick its own, and Display mode on that browser uses the same style (Sci-fi, Hacker or Clean), theme and accent.
 - **Default look for everyone:** on the computer itself or a Tailscale device, **Tools & settings → Appearance → Default for everyone** sets the style, theme (dark, light or match the device) and accent color that the dashboard and Display mode start with. Anyone can still pick their own; **Use the default look** goes back to it.
 - **Using the computer yourself for a while?** Press **⏸ Pause** at the top of the dashboard (on the computer itself).
   Public web access and automatic speed tests switch off for 30 minutes to 4 hours, a time you type in (**Custom…**),

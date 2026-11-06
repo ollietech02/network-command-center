@@ -7,7 +7,7 @@
 <link rel="icon" href="/icon.svg">
 <meta name="theme-color" content="#05090d">
 <script>
-// Same look as the dashboard: Tools & settings -> Appearance (theme + accent, saved per browser;
+// Same look as the dashboard: Tools & settings -> Appearance (style + theme + accent, saved per browser;
 // until this browser picks its own, the server fills in the default look for everyone).
 // Follows changes live: from the dashboard (storage event) and from the computer's own light/dark setting ("Match this device").
 (function(){const d=document.documentElement,mq=matchMedia("(prefers-color-scheme: light)");
@@ -16,7 +16,8 @@
   const apply=()=>{let y=DS;try{y=JSON.parse(get("ncc-style","null"))||DS}catch(e){}
     let t=get("ncc-theme",DT);if(t==="auto")t=mq.matches?"light":"dark";if(y==="hacker")t="dark";
     let a=DA;try{a=JSON.parse(get("ncc-accent",JSON.stringify(DA)))}catch(e){}
-    d.dataset.theme=t;d.dataset.accent=a;
+    if(!["scifi","hacker","clean"].includes(y))y="scifi";
+    d.dataset.theme=t;d.dataset.accent=a;d.dataset.style=y;
     const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==="light"?"#eef3f6":"#05090d"};
   apply();window.nccWallLook=apply;
   try{mq.addEventListener("change",apply)}catch(e){}
@@ -46,6 +47,31 @@
 }
 :root[data-theme="light"][data-accent="green"]{--cyan:#0b7d45} :root[data-theme="light"][data-accent="purple"]{--cyan:#6a3fd1}
 :root[data-theme="light"][data-accent="orange"]{--cyan:#b45a00} :root[data-theme="light"][data-accent="pink"]{--cyan:#b8327a}
+/* ---- styles, same as the dashboard (this browser's pick, else the default look). "scifi" is the base above. */
+/* Hacker: black terminal, green phosphor text, monospace everywhere, faint scanlines. Always dark. */
+:root[data-style="hacker"][data-theme]{
+  color-scheme:dark;
+  --bg:#000; --panel:#020a03; --line:#0c3a14; --line2:#145820;
+  --ink:#5cff7a; --ink2:#2fcf52; --muted:#1f9a3a; --cyan:#39ff5a; --blue:#39ff5a;
+  --good:#39ff5a; --good-ink:#5cff7a;
+  --scrim:rgba(0,0,0,.9); --glow1:rgba(57,255,90,.05); --glow2:rgba(57,255,90,.03); --chipbg:rgba(57,255,90,.05);
+}
+:root[data-style="hacker"] body{font-family:var(--mono);background:#000}
+:root[data-style="hacker"] body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:3;
+  background-image:repeating-linear-gradient(0deg,rgba(57,255,90,.035) 0 1px,transparent 1px 3px)}
+:root[data-style="hacker"] .card,:root[data-style="hacker"] header{border-radius:0;box-shadow:0 0 calc(var(--u)*1.8) rgba(57,255,90,.05) inset}
+:root[data-style="hacker"] .chip,:root[data-style="hacker"] #hint,:root[data-style="hacker"] .bar{border-radius:0}
+:root[data-style="hacker"] .card>.lbl::before,:root[data-style="hacker"] .card>div>.lbl::before{content:"> ";color:var(--cyan)}
+:root[data-style="hacker"] .brand,:root[data-style="hacker"] #clk,:root[data-style="hacker"] .big,:root[data-style="hacker"] #st-word{text-shadow:0 0 .4em rgba(57,255,90,.45)}
+/* Clean: plain and friendly. Normal fonts, rounder cards, no glow, no shouting headings. */
+:root[data-style="clean"]{--mono:system-ui,"Ubuntu","Segoe UI",sans-serif;--glow1:transparent;--glow2:transparent}
+:root[data-style="clean"] .card,:root[data-style="clean"] header{border-radius:calc(var(--u)*2);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+:root[data-style="clean"] .lbl{letter-spacing:0;text-transform:none;font-size:calc(var(--u)*1.15);color:var(--ink2)}
+:root[data-style="clean"] .big{font-size:calc(var(--u)*3.8);margin-top:calc(var(--u)*.6)}
+:root[data-style="clean"] .sub{margin-top:calc(var(--u)*.4)}
+:root[data-style="clean"] .brand{letter-spacing:.02em;text-transform:none}
+:root[data-style="clean"] #clk,:root[data-style="clean"] #date{letter-spacing:.02em}
+:root[data-style="clean"] .ring,:root[data-style="clean"] .ring::after{box-shadow:none}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
   font:calc(var(--u)*1.5)/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -312,6 +338,8 @@ function feed(qs){
     const li=document.createElement("li");li.dataset.k=k;if(q.blocked)li.className="b";
     li.innerHTML=`<span class="d">${esc(q.domain)}</span><span class="c">${esc(devName(q.client))}</span>`;ul.prepend(li)}
   while(ul.children.length>18)ul.lastElementChild.remove();
+  // no half-cut row at the bottom: drop rows that don't fully fit (the box size depends on screen and style)
+  while(ul.children.length>1&&ul.lastElementChild.offsetTop+ul.lastElementChild.offsetHeight>ul.offsetTop+ul.clientHeight)ul.lastElementChild.remove();
   if(SEEN.size>3000)SEEN.clear();
 }
 // Pi-hole reports clients as hostnames; show the name the user gave that device when we know it
