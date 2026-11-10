@@ -202,7 +202,7 @@ body.idle #hint{opacity:0}
   </section>
 
   <section class="card" id="net">
-    <div class="lbl">Download right now</div>
+    <div class="lbl">Being used right now</div>
     <div class="big" id="net-n">—</div>
     <div class="sub" id="net-sub">&nbsp;</div>
     <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true">
@@ -323,7 +323,8 @@ function speed(){
 function net(rx,tx){
   if(rx==null)return;RX.push(rx);if(RX.length>180)RX.shift();
   $("#net-n").innerHTML=`${fmtMb(rx)}<small>Mbps</small>`;
-  $("#net-sub").textContent=tx!=null?`${fmtMb(tx)} Mbps up`:"";
+  const st=SPD&&SPD.tests&&SPD.tests[SPD.tests.length-1];
+  $("#net-sub").textContent=[tx!=null?`${fmtMb(tx)} Mbps up`:null,st?`your speed ${Math.round(st.down_mbps)} Mbps`:null].filter(Boolean).join(" · ");
   if(RX.length<2)return;const mx=Math.max(...RX,1e6),n=RX.length;
   const pts=RX.map((v,i)=>[i/(n-1)*300,98-v/mx*88]);const d="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join("L");
   $("#spark-l").setAttribute("d",d);$("#spark-a").setAttribute("d",d+"L300,100L0,100Z");
