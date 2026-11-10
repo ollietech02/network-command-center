@@ -1228,7 +1228,7 @@ function topo(){
   const groups={};for(const d of act){const k=d.conn||"Unknown link";(groups[k]=groups[k]||[]).push(d)}
   const keys=Object.keys(groups).sort();
   const gx=W/2,gy=120;let s="";
-  const bb=S.gateway.broadband||{},l=S.last;
+  const bb=(S.gateway||{}).broadband||{},l=S.last;
   const node=(x,y,r,col,label,sub,strong)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="var(--panel2)" stroke="${col}" stroke-width="2"/><text x="${x}" y="${y+r+13}" text-anchor="middle" class="${strong?"lbl-strong":""}">${esc(label)}</text>${sub?`<text x="${x}" y="${y+r+25}" text-anchor="middle">${esc(sub)}</text>`:""}`;
   // internet -> gateway
   const netCol=l.internet?"var(--cyan)":"var(--crit)",gwCol=l.gw.ok?"var(--cyan)":"var(--crit)";
@@ -1496,12 +1496,13 @@ function pihole(){
 
 function security(){
   const sec=S.security||{},a=sec.auth||{};
-  const pub=sec.listeners_public||[];
+  // just the port numbers, each once, smallest first ("100.71.148.1%tailscale0:443" -> 443)
+  const pub=[...new Set((sec.listeners_public||[]).map(x=>+String(x).split(":").pop()).filter(n=>n>0))].sort((a,b)=>a-b);
   $("#sec").innerHTML=`<dl class="kv">
     <dt>Monitored services</dt><dd>${S.last.gw.ok?"gateway ✔":"gateway ✖"} · ${S.last.internet?"internet ✔":"internet ✖"} · ${S.last.dns.ok?"dns ✔":"dns ✖"} · ${S.pihole.configured?(S.pihole.ok?"pi-hole ✔":"pi-hole ✖"):"pi-hole —"}</dd>
     <dt>SSH server</dt><dd>${a.sshd?"running (watched)":"not installed / not running"}</dd>
     <dt>Auth log</dt><dd>${a.available?"watched via adm group":esc(a.reason||"unavailable")}</dd>
-    <dt>Network-exposed ports on this PC</dt><dd>${pub.length?esc(pub.join(", ")):"none (all services localhost-only)"}</dd>
+    <dt>Network-exposed ports on this PC</dt><dd>${pub.length?pub.map(n=>`<div>${n}</div>`).join(""):"none (all services localhost-only)"}</dd>
     <dt>Notifications</dt><dd>desktop${S.config.ntfy?" + ntfy push":""}</dd></dl>
     <h2 style="margin-top:14px">Recent failed authentication</h2>
     ${(a.recent&&a.recent.length)?`<ul class="toplist">${a.recent.slice().reverse().map(r=>`<li><span title="${esc(r)}">${esc(r.replace(/^\S+\s+\S+\s+/,""))}</span><span>${esc(r.slice(0,16).replace("T"," "))}</span></li>`).join("")}</ul>`:'<p class="note">None recorded.</p>'}
