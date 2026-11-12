@@ -207,7 +207,7 @@ if ($Tailscale -and $AdminOut.tailscale -eq 'ok') {
 Step "Done! Here's what's left for you"
 Say "  Open the dashboard: http://localhost:$Port  (or ""Network Command Center"" in the Start menu)"
 if ($TsUrl) { Say "  On your phone: turn Tailscale on, open $TsUrl, and set a PIN on this computer first (Security tab)." }
-if ($AdminOut.rdp -eq 'ok') { Say "  Remote Desktop: connect to this computer's name or address and sign in with your normal Windows account ($env:USERNAME)." }
+if ($AdminOut.rdp -eq 'ok') { Say "  Remote Desktop: connect to this computer's name or address. Sign in with your account's password (not the PIN): username $env:USERNAME, or your full email address for a Microsoft account." }
 if ($BlockerDone) {
   Say "  Make $BlockerDone protect every device at home (the installer never changes your router):"
   if ($Router -eq 'att') {

@@ -71,10 +71,61 @@ connect. It's reachable from your home network and Tailscale, never the open int
 
 | Your computer | What the installer turns on | How you connect |
 |---|---|---|
-| Ubuntu 24.04 or newer, Debian 13 with GNOME | GNOME's built-in **Remote Login** | Any RDP app (Windows "Remote Desktop Connection", the Windows App, Remmina). You start at the login screen. |
+| Ubuntu 24.04 or newer, Debian 13 with GNOME | GNOME's built-in **Remote Login** | An RDP app such as Remmina or Windows "Remote Desktop Connection". You start at the login screen. The Windows App needs Desktop Sharing instead (see [Signing in with remote desktop](#signing-in-with-remote-desktop)). |
 | **Raspberry Pi OS** with desktop | Its built-in **VNC** screen sharing | A VNC app such as RealVNC Viewer (free). You see the Pi's screen as it is. |
 | Debian 12, Linux Mint, or Xfce, MATE, KDE desktops | **xrdp**, from your system's own packages | Any RDP app. It opens its own desktop session, so sign out at the computer first. |
 | No desktop (servers, Raspberry Pi OS **Lite**) | Nothing: there's no screen to show | |
+
+### Signing in with remote desktop
+
+In every case, the **PC name** is the computer's Tailscale name (with Tailscale on) or its address at home. Both are
+shown in the dashboard's **Security** tab.
+
+**Linux with GNOME Remote Login** (Ubuntu 24.04 or newer, Debian 13):
+
+1. **Username:** the one in `remote-login.txt` in your home folder (`remote` unless you changed it), typed exactly,
+   with nothing in front of it. It is *not* your normal Linux username.
+2. **Password:** the one in `remote-login.txt`. To see it, open a terminal on the computer and type
+   `cat ~/remote-login.txt`.
+3. Accept the certificate warning the first time.
+4. You reach the normal login screen. Sign in there with your normal Linux username and password. This step can take
+   up to a minute on slower computers. If it gives up, connect again.
+
+**If the app says the credentials are wrong and the username has changed to something strange:** your password was
+accepted, but the app failed GNOME's hand-off to the login screen. Retyping the password won't help. Microsoft's
+**Windows App** (Mac, iPhone, iPad, Android) is known to do this. Use **Desktop Sharing** instead. It connects
+straight to the desktop of whoever is signed in at the computer, with no hand-off:
+
+1. On the computer, open **Settings → System → Remote Desktop → Desktop Sharing**.
+2. Turn on **Desktop Sharing** and **Remote Control**, and set a username and password there. These are separate from
+   Remote Login.
+3. In the app, connect to the address shown on that page. This is usually port **3390**, for example `my-pc:3390`,
+   because Remote Login already uses 3389.
+
+   Someone must be signed in at the computer for this to work. If the screen is locked, you unlock it with the normal
+   password.
+
+**To change the Remote Login password:**
+
+1. Go to **Settings → System → Remote Desktop → Remote Login**, then **Unlock** and type the new password.
+2. Restart Remote Login so it uses the new password for every sign-in: `sudo systemctl restart gnome-remote-desktop`.
+   Until you restart it, apps can keep failing with "credentials are wrong".
+3. Put the new password in `remote-login.txt` too, so you don't lose it.
+
+**Windows computer** (Windows Pro, Education or Enterprise):
+
+1. **Username:**
+   - If you sign in to Windows with a Microsoft account (an email address), use that **full email address**. To check,
+     open **Settings → Accounts → Your info**. If it shows an email, it's a Microsoft account.
+   - If you sign in with a local account, use its name. To see it, type `whoami` in a terminal on that PC: it's the part
+     after the `\`.
+2. **Password:** the account's real **password**, not the Windows Hello PIN, fingerprint or face sign-in. Remote
+   Desktop never accepts the PIN.
+3. If you always sign in with a PIN and it still says the password is wrong:
+   - Sign in on the PC itself once with the password: on the sign-in screen, choose **Sign-in options → Password**.
+   - Turn off **Settings → Accounts → Sign-in options → "For improved security, only allow Windows Hello sign-in…"**,
+     then try again.
+4. Accept the certificate warning the first time.
 
 ## Raspberry Pi
 
@@ -321,7 +372,9 @@ menu. Everyday commands: open the folder in a terminal and type `.\ncc status`, 
 
 - **AT&T gateways:** AdGuard Home can't hand out addresses on Windows, so set the DNS on each device instead (the
   dashboard shows how). For the whole home at once on AT&T, use a Raspberry Pi or Linux computer with Pi-hole.
-- **Remote Desktop** only works on Windows Pro, Education and Enterprise. You sign in with your normal Windows account.
+- **Remote Desktop** only works on Windows Pro, Education and Enterprise. Sign in with your account's password (not the
+  PIN). For a Microsoft account, the username is its full email address. See
+  [Signing in with remote desktop](#signing-in-with-remote-desktop).
 - **Wi-Fi neighbors** on Windows 11 need Location turned on (Settings → Privacy & security → Location).
 - The dashboard runs while you're signed in. The ad blocker runs all the time.
 
