@@ -324,20 +324,51 @@ button.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:
   background:none;display:grid;place-items:center;cursor:pointer;opacity:.75}
 button.eye:hover,button.eye:focus-visible{opacity:1}
 button.eye,button.eye:hover{border:0;color:var(--muted)}button.eye:hover{color:var(--cyan)}
+/* ---- phones: a short header with a menu button; the tabs and header buttons open from it */
+#menu-btn,#menu-bg{display:none}
+@media (max-width:700px){
+  header{gap:8px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  .brand{letter-spacing:.12em;font-size:12px}
+  .brand .full,#ver{display:none}
+  header .chip{font-size:10px;padding:3px 6px;letter-spacing:.04em}
+  #live{font-size:0;gap:0;padding:3px 5px} #live .dot{margin:0}
+  #menu-btn{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font:600 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:7px 10px;min-height:36px}
+  #menu-btn .ham{font-size:16px;line-height:1}
+  #menu-btn[aria-expanded=true]{border-color:var(--cyan);color:var(--cyan)}
+  /* closed: only the top row shows */
+  header nav.views,header .hdr-right{display:none}
+  body.menu-open header nav.views{display:flex;flex-direction:column;flex-wrap:nowrap;gap:0;margin:2px -12px 0;flex-basis:calc(100% + 24px);border-top:1px solid var(--line);max-height:calc(100vh - 160px);overflow-y:auto}
+  body.menu-open header nav.views a{padding:13px 18px;font-size:13px;border-bottom:1px solid var(--line);border-left:3px solid transparent}
+  body.menu-open header nav.views a[aria-current=page]{border-bottom-color:var(--line);border-left-color:var(--cyan);background:rgba(57,197,230,.08)}
+  body.menu-open header .hdr-right{display:flex;order:5;width:100%;padding:10px 0 4px;gap:8px;align-items:stretch}
+  body.menu-open header .hdr-right>*{margin:0;display:inline-flex;align-items:center}
+  body.menu-open header .hdr-right .clock{display:none}
+  body.menu-open header .hdr-right #tvmode{display:none} /* phone menu: Log out takes Display mode's place */
+  body.menu-open header .hdr-right button,body.menu-open header .hdr-right a{flex:1 1 auto;justify-content:center;text-align:center;padding:9px 10px}
+  body.menu-open #menu-bg{display:block;position:fixed;inset:0;z-index:4;background:rgba(0,0,0,.55)}
+  /* nothing may be wider than the screen */
+  .cols2>*,.cols2{min-width:0}
+  main code,main .big-code{overflow-wrap:anywhere}
+  main .mono{overflow-wrap:break-word}
+  .gs table{display:block;max-width:100%;overflow-x:auto}
+  main{overflow-x:clip}
+}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><b>NCC</b> // Network Command Center <span id="ver" class="sub"></span></div>
+  <div class="brand"><b>NCC</b><span class="full"> // Network Command Center</span> <span id="ver" class="sub"></span></div>
   <span id="overall" class="chip info"><span class="dot"></span>Initializing</span>
   <span id="live" class="chip live-chip stale" title="Live stream status"><span class="dot"></span>Connecting</span>
+  <button id="menu-btn" aria-expanded="false" aria-controls="views-nav" title="Tabs and buttons"><span id="menu-cur">Overview</span><span class="ham" aria-hidden="true">☰</span></button>
   <div class="hdr-right"><div class="clock" aria-live="off"><b id="clock-t">--:--:--</b><span id="clock-d"></span></div><span id="updated">—</span><button id="refresh" title="Run all checks now">⟳ Re-check</button><button id="pause-btn" title="Using the computer yourself for a while? Switch off public web access and automatic speed tests, and have them come back by themselves" hidden>⏸ Pause</button><button id="hdr-out" title="Sign this browser out" hidden>⎋ Log out</button><a id="tvmode" href="/wall" title="Big read-only screen for a TV or spare monitor, opens in full screen">▣ Display mode</a><button id="fs" title="Full screen (press F; Esc to leave)">⛶ Full screen</button></div>
-  <nav class="views" aria-label="Dashboards">
+  <nav class="views" id="views-nav" aria-label="Dashboards">
     <a href="#/" data-view="overview">Overview</a><a href="#/internet" data-view="internet">Internet</a>
     <a href="#/devices" data-view="devices">Devices <span class="bd" id="bd-devices"></span></a><a href="#/pihole" data-view="pihole">Pi-hole <span class="bd" id="bd-pihole"></span></a>
     <a href="#/system" data-view="system">This PC</a><a href="#/security" data-view="security">Security</a><a href="#/troubleshoot" data-view="troubleshoot">Troubleshoot</a><a href="#/tools" data-view="tools">Tools &amp; settings</a><a href="#/guide" data-view="guide">Help</a>
   </nav>
 </header>
+<div id="menu-bg"></div>
 <main>
 <div id="pause-bar" role="status"></div>
 <div id="upd-bar" role="status"></div>
@@ -1644,6 +1675,12 @@ $("#g-q").addEventListener("input",()=>{
 const VIEWS=["overview","internet","devices","pihole","system","security","troubleshoot","tools","guide"];let VIEW="overview";
 function internetExtras(){if(VIEW!=="internet"&&VIEW!=="overview")return;usageUI().catch(()=>{});sitesUI().catch(()=>{});
   if(VIEW==="internet"&&!$("#wf").innerHTML)wifiUI().catch(()=>{})}
+// phones: the ☰ button opens the tabs and the header buttons; picking a tab, tapping outside or Esc closes it
+function menuOpen(on){document.body.classList.toggle("menu-open",on);const b=$("#menu-btn");if(b)b.setAttribute("aria-expanded",on?"true":"false")}
+document.addEventListener("click",e=>{
+  if(e.target.closest("#menu-btn")){menuOpen(!document.body.classList.contains("menu-open"));return}
+  if(e.target.id==="menu-bg"||(document.body.classList.contains("menu-open")&&e.target.closest("header .hdr-right button, header .hdr-right a")))menuOpen(false)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.body.classList.contains("menu-open"))menuOpen(false)});
 function setView(v){
   if(!VIEWS.includes(v))v="overview";const changed=v!==VIEW;VIEW=v;document.body.dataset.view=v;
   document.querySelectorAll("[data-v]").forEach(el=>{const vs=el.dataset.v.split(" ");
@@ -1653,6 +1690,7 @@ function setView(v){
   document.querySelectorAll("nav.views a").forEach(a=>a.dataset.view===v?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current"));
   try{localStorage.setItem("ncc.view",v)}catch(e){}
   document.title=(v==="overview"?"":document.querySelector(`nav.views a[data-view=${v}]`).firstChild.textContent.trim()+" · ")+"Network Command Center";
+  $("#menu-cur").textContent=document.querySelector(`nav.views a[data-view=${v}]`).firstChild.textContent.trim();menuOpen(false);
   if(S){charts();topo();liveCharts()}
   if(changed)internetExtras();
   if(v==="pihole")loadLists();
