@@ -100,7 +100,7 @@ def load_csrf():
 CSRF = load_csrf()
 STOP = threading.Event()
 LOCK = threading.Lock()
-VERSION = "1.4"  # 2026-11-13: phone layout with a ☰ menu, remote desktop sign-in steps, ports list (1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26))
+VERSION = "1.5"  # 2026-11-16: battery chip by LIVE, true battery %, iPad fixes (1.4: 2026-11-13, phone layout with a ☰ menu, remote desktop sign-in steps, ports list; 1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26))
 STATE = {"started": time.time(), "last": {}, "pihole": {"configured": False}, "devices": [],
          "gateway": {}, "security": {}, "listeners": []}
 
@@ -602,6 +602,47 @@ def meminfo():
     return mi
 
 
+def battery():
+    """Battery % and charging state, cheap enough to read every live frame (sysfs only).
+    Plugged in comes from the charger (Mains supply), because the battery itself can keep
+    saying "Full" for minutes after the cable is pulled."""
+    bp = Path("/sys/class/power_supply/BAT0")
+    if not bp.exists():
+        return None
+
+    def rd(f):
+        try:
+            return int(f.read_text())
+        except (OSError, ValueError):
+            return None
+    try:
+        status = (bp / "status").read_text().strip()
+    except OSError:
+        return None
+    plugged = None
+    for ps in Path("/sys/class/power_supply").iterdir():
+        try:
+            if (ps / "type").read_text().strip() == "Mains":
+                plugged = bool(plugged) or rd(ps / "online") == 1
+        except OSError:
+            pass
+    # Some batteries report "capacity" against the design size, so a worn battery
+    # shows e.g. 82% when full. Use charge (or energy) now ÷ full, like GNOME does.
+    now, full = rd(bp / "charge_now"), rd(bp / "charge_full")
+    if not (now is not None and full):
+        now, full = rd(bp / "energy_now"), rd(bp / "energy_full")
+    design = rd(bp / "charge_full_design") or rd(bp / "energy_full_design")
+    pct = round(min(100, 100 * now / full)) if now is not None and full else rd(bp / "capacity")
+    if plugged is False and status in ("Full", "Not charging", "Unknown"):
+        status = "Discharging"
+    elif plugged and status == "Full":
+        pct = 100
+    bat = {"pct": pct, "status": status, "plugged": plugged}
+    if full and design:
+        bat["health"] = round(min(100, 100 * full / design))
+    return bat
+
+
 def cpu_temp():
     if WIN:
         return None  # Windows only shares CPU temperature with admin tools
@@ -659,13 +700,7 @@ def sysmetrics():
         except Exception:
             pass
     cpu_temp = temps.get("x86_pkg_temp") or temps.get("coretemp Package id 0")
-    bat = None
-    bp = Path("/sys/class/power_supply/BAT0")
-    if bp.exists():
-        try:
-            bat = {"pct": int((bp / "capacity").read_text()), "status": (bp / "status").read_text().strip()}
-        except Exception:
-            pass
+    bat = battery()
     load = open("/proc/loadavg").read().split()[:3]
     return {
         "cpu": cpu, "cores": os.cpu_count(), "load": [float(x) for x in load],
@@ -2404,7 +2439,8 @@ def live_loop():
             dev = (STATE.get("device_meta") or {}).get("iface", {}).get("dev") or local_iface().get("dev")
             mi = meminfo()
             frame = {"ts": t0, "cpu": cpu_pct("live"), "mem_pct": round(100 * (1 - mi["MemAvailable"] / mi["MemTotal"]), 1),
-                     "mem_avail": mi["MemAvailable"], "swap_used": mi["SwapTotal"] - mi["SwapFree"], "temp": cpu_temp()}
+                     "mem_avail": mi["MemAvailable"], "swap_used": mi["SwapTotal"] - mi["SwapFree"], "temp": cpu_temp(),
+                     "battery": W.battery() if os.name == "nt" else battery()}
             gw = default_gateway()
             p = ping(gw, 1, 1) if gw else {"ok": False, "ms": None}
             frame["gw_ok"], frame["gw_ms"] = p["ok"], p["ms"]

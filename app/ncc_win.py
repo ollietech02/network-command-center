@@ -199,7 +199,8 @@ def battery():
     if not k32.GetSystemPowerStatus(ctypes.byref(s)) or s.BatteryFlag & 128 or s.BatteryFlag == 255 or s.BatteryLifePercent > 100:
         return None  # desktop PC, or unknown
     status = "Charging" if s.BatteryFlag & 8 else ("Full" if s.BatteryLifePercent >= 99 else "Not charging") if s.ACLineStatus == 1 else "Discharging"
-    return {"pct": int(s.BatteryLifePercent), "status": status}
+    plugged = {0: False, 1: True}.get(s.ACLineStatus)  # 255 = unknown
+    return {"pct": int(s.BatteryLifePercent), "status": status, "plugged": plugged}
 
 
 class PROCESS_MEMORY_COUNTERS(ctypes.Structure):

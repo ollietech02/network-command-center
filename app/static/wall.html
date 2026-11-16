@@ -291,7 +291,7 @@ function tiles(){
   $("#f-ph").textContent=!ph.configured?"not set up":ph.ok?(ph.blocking==="enabled"?"blocking":"paused"):"off";
   const u7=S.uptime&&S.uptime["7d"];$("#f-up").textContent=u7?u7.internet+"%":"—";
   const sy=l.sys||{};$("#f-sys").textContent=[sy.temp!=null?(sy.temp*9/5+32).toFixed(0)+" °F":null,sy.cpu!=null?"CPU "+sy.cpu.toFixed(0)+"%":null,
-    sy.battery&&sy.battery.pct!=null?"battery "+sy.battery.pct+"%":null].filter(Boolean).join(" · ")||"—";
+    sy.battery&&sy.battery.pct!=null?"battery "+sy.battery.pct+"%"+(sy.battery.plugged===false?" (unplugged)":sy.battery.status==="Charging"?" ⚡ charging":sy.battery.plugged?" plugged in":({Discharging:" (unplugged)",Full:" plugged in","Not charging":" plugged in"}[sy.battery.status]||"")):null].filter(Boolean).join(" · ")||"—";
   if(bb.rx_bps!=null&&!RX.length)net(bb.rx_bps,bb.tx_bps);
 }
 
@@ -360,7 +360,7 @@ let ES=null;
 function live(){ES=new EventSource("/api/live");
   ES.onmessage=e=>{const f=JSON.parse(e.data);ok();
     if(f.wan)net(f.wan.rx_bps,f.wan.tx_bps);
-    if(S){S.last.gw={...S.last.gw,ok:f.gw_ok,ms:f.gw_ms};Object.assign(S.last.sys||{},{cpu:f.cpu,temp:f.temp??(S.last.sys||{}).temp});
+    if(S){S.last.gw={...S.last.gw,ok:f.gw_ok,ms:f.gw_ms};Object.assign(S.last.sys||{},{cpu:f.cpu,temp:f.temp??(S.last.sys||{}).temp,battery:f.battery!==undefined?f.battery:(S.last.sys||{}).battery});
       if(f.pihole&&f.pihole.ok)Object.assign(S.pihole,{total:f.pihole.total,blocked:f.pihole.blocked,pct:f.pihole.pct,blocking:f.pihole.blocking,ok:true});tiles()}
     if(f.pihole)feed(f.pihole.queries)};
   ES.addEventListener("signout",()=>{ES.close();location.replace("/")});
