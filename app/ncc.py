@@ -100,7 +100,7 @@ def load_csrf():
 CSRF = load_csrf()
 STOP = threading.Event()
 LOCK = threading.Lock()
-VERSION = "1.7"  # 2026-11-18: Pi-hole DNS activity panel stacks on phones (1.6: 2026-11-16, phone menu button says Menu, LIVE text on phones (1.5: 2026-11-16, battery chip by LIVE, true battery %, iPad fixes; 1.4: 2026-11-13, phone layout with a ☰ menu, remote desktop sign-in steps, ports list; 1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26)))
+VERSION = "1.8"  # 2026-11-18: AI answers on your own signed-in devices (1.7: 2026-11-18, Pi-hole DNS activity panel stacks on phones (1.6: 2026-11-16, phone menu button says Menu, LIVE text on phones (1.5: 2026-11-16, battery chip by LIVE, true battery %, iPad fixes; 1.4: 2026-11-13, phone layout with a ☰ menu, remote desktop sign-in steps, ports list; 1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26))))
 STATE = {"started": time.time(), "last": {}, "pihole": {"configured": False}, "devices": [],
          "gateway": {}, "security": {}, "listeners": []}
 
@@ -3026,8 +3026,10 @@ def snapshot_for_ai():
 
 
 # The person's own AI assistant, through its own command-line program and their own sign-in (never a shared account).
-# Each one runs without tools where the program allows it, in an empty folder, and only for requests from this computer.
+# Each one runs without tools where the program allows it, in an empty folder, and only for the owner: this computer,
+# your own Tailscale devices or a full web login (capped per hour from other devices).
 AI_TOOLS = {"claude": "Claude Code", "codex": "Codex", "gemini": "Gemini CLI"}
+AI_REMOTE, AI_REMOTE_PER_HOUR = [], 30  # questions from other devices in the last hour, and the cap
 
 
 def ai_exe(name):
@@ -3369,6 +3371,16 @@ class H(BaseHTTPRequestHandler):
         v = _read_json(SESS_FILE, {}).get(hashlib.sha256((self._cookie() or "").encode()).hexdigest())
         return isinstance(v, dict) and v.get("kind") == "pin"
 
+    def _ai_ok(self):
+        """May ask the AI: the laptop, one of your own Tailscale devices, or a full (not view-only) web login.
+        Never a signed-out visitor, so nobody else uses your AI account."""
+        if not self._remote():
+            return True
+        v = _read_json(SESS_FILE, {}).get(hashlib.sha256((self._cookie() or "").encode()).hexdigest())
+        if not isinstance(v, dict):
+            return not self._public()
+        return v.get("kind") == "pin" or (v.get("kind") == "web" and session_role(self._cookie()) == "edit")
+
     def _public(self):
         """Came from the open web through Tailscale Funnel rather than from one of your Tailscale devices."""
         if not self._remote():
@@ -3470,7 +3482,7 @@ class H(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self._send(200, status_body())
         if path == "/api/ai":
-            return self._send(200, {"assistant": ai_assistant(), "names": AI_TOOLS, "local": not self._remote(),
+            return self._send(200, {"assistant": ai_assistant(), "names": AI_TOOLS, "local": not self._remote(), "can_ask": self._ai_ok(),
                                     "installed": {k: bool(ai_exe(k)) for k in AI_TOOLS}})
         if path == "/api/ai/handoff":
             if not self._manager():
@@ -3703,10 +3715,18 @@ class H(BaseHTTPRequestHandler):
                 topic = body.get("topic")
                 if topic in QUICK and not body.get("ai"):
                     return self._send(200, {"answer": rule_answer(topic), "source": "rules"})
-                if body.get("ai") and ai_assistant() != "off" and not self._remote():
+                if body.get("ai") and ai_assistant() != "off" and self._ai_ok():
+                    if self._remote():
+                        now = time.time()
+                        AI_REMOTE[:] = [t for t in AI_REMOTE if now - t < 3600]
+                        if len(AI_REMOTE) >= AI_REMOTE_PER_HOUR:
+                            return self._send(200, {"answer": f"That's {AI_REMOTE_PER_HOUR} AI questions from other devices "
+                                                    "this hour, the most allowed. Try again later, or ask on the computer itself.",
+                                                    "source": "rules"})
+                        AI_REMOTE.append(now)
                     return self._send(200, {"answer": ask_ai(question), "source": ai_assistant()})
                 why = ("AI answers are off. Pick your assistant in Tools & settings → AI assistant." if ai_assistant() == "off"
-                       else "AI answers only work on the computer itself, so nobody else can use your AI account.")
+                       else "AI answers work on the computer itself and on your own signed-in devices, so nobody else can use your AI account.")
                 return self._send(200, {"answer": rule_answer("next") + (f"\n\n({why})" if body.get("ai") else ""), "source": "rules"})
             if path == "/api/action":
                 return self._send(200, action(str(body.get("name")), str(body.get("arg", ""))[:255]))

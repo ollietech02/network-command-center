@@ -344,8 +344,10 @@ The **Ask** box in the **Troubleshoot** tab can answer questions with Claude Cod
    (or Codex, or Gemini CLI). With no AI picked it says **Ask (rules)** and answers from built-in checks.
 
 It runs that program on this computer with your own sign-in. It only sends a snapshot of the measurements, with
-private details removed, and gives it no access to your files or commands. It only answers questions asked on this
-computer itself, so nobody using the dashboard from elsewhere can use your AI account.
+private details removed, and gives it no access to your files or commands. It answers questions asked on this
+computer, on your own Tailscale devices signed in with your PIN, and from full (not view-only) web logins, so you can
+ask from your phone too. Signed-out visitors and view-only accounts can't use your AI account, and other devices are
+limited to 30 questions an hour.
 
 ## Windows
 

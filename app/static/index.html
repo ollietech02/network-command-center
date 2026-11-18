@@ -1810,7 +1810,7 @@ async function aiUI(){
   const r=await api("/api/ai");if(!r||!r.names)return;
   const opts=[["off","Off (built-in rules only)"],...Object.entries(r.names).map(([k,n])=>[k,n+(r.installed[k]?"":" (not installed)")])];
   $("#sb-ai").innerHTML=`<p class="sm">"Ask" in the Troubleshoot tab uses <select id="set-ai" aria-label="AI assistant" ${r.local?"":"disabled"}>${opts.map(([v,t])=>`<option value="${v}" ${v===r.assistant?"selected":""}>${esc(t)}</option>`).join("")}</select> <span class="sm" id="msg-ai"></span></p>
-    <p class="note">It runs the assistant's own program on this computer, signed in with <b>your</b> account, and only answers questions asked on this computer, so nobody else can use it. Install one first and sign in once:
+    <p class="note">It runs the assistant's own program on this computer, signed in with <b>your</b> account. It answers questions asked on this computer, your own Tailscale devices and full web logins (up to 30 an hour from other devices), never signed-out visitors or view-only accounts. Install one first and sign in once:
       <b>Claude Code</b> (claude.com/claude-code) · <b>Codex</b> (<code>npm i -g @openai/codex</code>) · <b>Gemini CLI</b> (<code>npm i -g @google/gemini-cli</code>).
       ${r.local?"":"<br><b>You can change this only on the computer itself.</b>"}</p>
     <p class="note">Any other AI: use <b>Copy for my AI</b> in the Troubleshoot tab and paste it in.</p>`;
