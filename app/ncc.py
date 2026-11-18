@@ -100,7 +100,7 @@ def load_csrf():
 CSRF = load_csrf()
 STOP = threading.Event()
 LOCK = threading.Lock()
-VERSION = "1.6"  # 2026-11-16: phone menu button says Menu, LIVE text on phones (1.5: 2026-11-16, battery chip by LIVE, true battery %, iPad fixes; 1.4: 2026-11-13, phone layout with a ☰ menu, remote desktop sign-in steps, ports list; 1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26))
+VERSION = "1.7"  # 2026-11-18: Pi-hole DNS activity panel stacks on phones (1.6: 2026-11-16, phone menu button says Menu, LIVE text on phones (1.5: 2026-11-16, battery chip by LIVE, true battery %, iPad fixes; 1.4: 2026-11-13, phone layout with a ☰ menu, remote desktop sign-in steps, ports list; 1.2: 2026-11-04, default look, Display mode live DNS lookups + light theme (1.1: 2026-10-30, Pause, Debian/Pi remote desktop; 1.0: first official version, 2026-10-26)))
 STATE = {"started": time.time(), "last": {}, "pihole": {"configured": False}, "devices": [],
          "gateway": {}, "security": {}, "listeners": []}
 

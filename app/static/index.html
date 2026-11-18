@@ -218,6 +218,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .lv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media (max-width:1500px){.lv-grid{grid-template-columns:1fr 1fr}}
 @media (max-width:520px){.lv-grid{grid-template-columns:1fr}}
+/* Pi-hole DNS activity: 3 across on big screens, 2 charts + stats below on tablets, stacked on phones */
+.lv-grid.pa-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:900px){.lv-grid.pa-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pa-grid>:last-child{grid-column:1/-1}}
+@media (max-width:560px){.lv-grid.pa-grid{grid-template-columns:minmax(0,1fr)}}
 [hidden],.feat-off{display:none!important}
 .clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .clock b{font:600 20px var(--mono);color:var(--ink);letter-spacing:.04em}
@@ -409,7 +413,7 @@ button.eye,button.eye:hover{border:0;color:var(--muted)}button.eye:hover{color:v
     <p class="note">Home internet speed comes from the router's own counters (AT&amp;T gateways only, set ROUTER=att; other routers can't share them). "This PC" is only this laptop's own traffic.</p>
   </section>
   <section class="panel c12" data-v="only pihole"><h2>DNS activity <span class="sub">live · last 5 min</span></h2>
-    <div class="lv-grid" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="lv-grid pa-grid">
       <div><div class="meter-row"><span>Queries / min</span><span id="pa-q">—</span></div><svg class="lchart" id="lc-pq"></svg></div>
       <div><div class="meter-row"><span>Blocked / min</span><span id="pa-b">—</span></div><svg class="lchart" id="lc-pb"></svg></div>
       <div><dl class="kv" id="pa-stats"></dl></div>
